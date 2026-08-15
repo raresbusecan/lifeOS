@@ -1,165 +1,758 @@
-import React, { useState } from "react";
+import React, { useRef } from "react";
 import {
+  View,
+  Text,
   ScrollView,
-  Alert,
+  Pressable,
+  StyleSheet,
 } from "react-native";
-import { useTheme } from "@/lib/theme";
 
-import { CarHeader } from "./CarHeader";
-import { CarStats } from "./CarStats";
-import { CarNextSection, CarNextItem } from "./CarNextSection";
 import {
-  CarRecentSection,
-  CarRecentItem,
-} from "./CarRecentSection";
-import {
-  CarQuickActions,
-  CarQuickAction,
-} from "./CarQuickActions";
-import {
-  CarDetails,
-  CarVehicle,
-} from "./CarDetails";
+  CarActionModal,
+  type CarActionModalRef,
+  type CarActionType,
+} from "./CarActionModal";
+
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/lib/theme";
 
 export type CarDashboardProps = {
   space: any;
+  onAdd?: () => void;
+  onEdit?: () => void;
 };
 
-const MOCK_VEHICLE: CarVehicle = {
-  make: "BMW",
-  model: "320d",
-  year: 2018,
-  registration_number: "MM01ABC",
-  mileage: 124580,
-  fuel_type: "Diesel",
-  engine: "2.0",
+type CarStat = {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  label: string;
+  suffix?: string;
 };
 
-const MOCK_NEXT: CarNextItem[] = [
-  {
-    id: 1,
-    icon: "construct-outline",
-    title: "Oil change",
-    subtitle: "Due in 1,200 km",
-    right: "Soon",
-  },
-  {
-    id: 2,
-    icon: "document-text-outline",
-    title: "RCA",
-    subtitle: "Expires in 42 days",
-    right: "Oct 12",
-  },
-];
+type CarNextItem = {
+  id: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  right: string;
+};
 
-const MOCK_RECENT: CarRecentItem[] = [
-  {
-    id: 1,
-    icon: "water-outline",
-    title: "Fuel",
-    subtitle: "Today · 58 L",
-    amount: 250,
-    currency: "RON",
-  },
-  {
-    id: 2,
-    icon: "construct-outline",
-    title: "Oil change",
-    subtitle: "Aug 8 · 123,380 km",
-    amount: 380,
-    currency: "RON",
-  },
-];
+type CarRecentItem = {
+  id: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  amount?: string;
+};
 
-const CAR_ACTIONS: CarQuickAction[] = [
-  {
-    key: "fuel",
-    icon: "water-outline",
-    label: "Fuel",
-  },
-  {
-    key: "maintenance",
-    icon: "construct-outline",
-    label: "Maintenance",
-  },
-  {
-    key: "document",
-    icon: "document-text-outline",
-    label: "Document",
-  },
-  {
-    key: "expense",
-    icon: "card-outline",
-    label: "Expense",
-  },
-];
+type CarAction = {
+  id: CarActionType;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+};
 
-export function CarDashboard({
+export default function CarDashboard({
   space,
+  onAdd,
+  onEdit,
 }: CarDashboardProps) {
-  const { spacing } = useTheme();
+  const { colors, spacing, radius } = useTheme();
 
-  const [vehicle] = useState<CarVehicle>(MOCK_VEHICLE);
+  const carActionModalRef = useRef<CarActionModalRef>(null);
+
+  /*
+   * =========================================================
+   * TEMPORARY LOCAL CAR DATA
+   * =========================================================
+   *
+   * Momentan dashboard-ul folosește date locale.
+   *
+   * Mai târziu acestea vor veni din API/DB:
+   *
+   * - mileage
+   * - monthly expenses
+   * - maintenance
+   * - documents
+   * - recent expenses
+   */
+
+  const stats: CarStat[] = [
+    {
+      icon: "speedometer-outline",
+      value: "124,580",
+      label: "Mileage",
+      suffix: "km",
+    },
+    {
+      icon: "wallet-outline",
+      value: "620",
+      label: "This month",
+      suffix: "RON",
+    },
+  ];
+
+  const nextItems: CarNextItem[] = [
+    {
+      id: "oil-change",
+      icon: "construct-outline",
+      title: "Oil change",
+      subtitle: "Due in 1,200 km",
+      right: "Soon",
+    },
+    {
+      id: "rca",
+      icon: "document-text-outline",
+      title: "RCA",
+      subtitle: "Expires in 42 days",
+      right: "Oct 12",
+    },
+  ];
+
+  const recentItems: CarRecentItem[] = [
+    {
+      id: "fuel-1",
+      icon: "water-outline",
+      title: "Fuel",
+      subtitle: "Today · 58 L",
+      amount: "250 RON",
+    },
+    {
+      id: "maintenance-1",
+      icon: "construct-outline",
+      title: "Oil change",
+      subtitle: "Aug 8 · 123,380 km",
+      amount: "380 RON",
+    },
+  ];
+
+  const quickActions: CarAction[] = [
+    {
+      id: "fuel",
+      icon: "water-outline",
+      label: "Fuel",
+    },
+    {
+      id: "maintenance",
+      icon: "construct-outline",
+      label: "Maintenance",
+    },
+    {
+      id: "document",
+      icon: "document-text-outline",
+      label: "Document",
+    },
+    {
+      id: "expense",
+      icon: "card-outline",
+      label: "Expense",
+    },
+  ];
+
+  /*
+   * =========================================================
+   * ADD
+   * =========================================================
+   *
+   * Deschide modalul cu acțiunile disponibile pentru CAR.
+   */
 
   const handleAdd = () => {
-    Alert.alert(
-      "Add",
-      "CAR add actions will be connected here."
-    );
+    onAdd?.();
+
+    carActionModalRef.current?.present();
   };
+
+  /*
+   * =========================================================
+   * CAR ACTION
+   * =========================================================
+   *
+   * Momentan doar verificăm că selecția funcționează.
+   *
+   * În etapa următoare:
+   *
+   * fuel        -> FuelForm
+   * maintenance -> MaintenanceForm
+   * expense     -> ExpenseForm
+   * document    -> DocumentForm
+   * mileage     -> MileageForm
+   */
+
+  const handleCarAction = (action: CarActionType) => {
+    console.log("[DEBUG CAR ACTION]", action);
+
+    /*
+     * IMPORTANT:
+     *
+     * Nu conectăm încă DB/API aici.
+     *
+     * După ce verificăm flow-ul UI,
+     * vom naviga către formularul corespunzător.
+     */
+  };
+
+  /*
+   * =========================================================
+   * EDIT CAR
+   * =========================================================
+   */
 
   const handleEdit = () => {
-    Alert.alert(
-      "Edit vehicle",
-      "Vehicle editing will be connected here."
-    );
-  };
+    console.log("[DEBUG CAR] EDIT PRESSED");
 
-  const handleAction = (
-    action: CarQuickAction["key"]
-  ) => {
-    Alert.alert(
-      action.charAt(0).toUpperCase() + action.slice(1),
-      `The ${action} flow will be connected here.`
-    );
+    onEdit?.();
   };
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.xl,
-        paddingBottom: 150,
+    <>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.xl,
+          paddingBottom: 150,
+        }}
+      >
+        {/* =====================================================
+            SPACE IDENTITY
+            ===================================================== */}
+
+        <View
+          style={{
+            position: "relative",
+            alignItems: "center",
+            paddingTop: spacing.md,
+            paddingBottom: spacing.xl,
+          }}
+        >
+          {/* ADD */}
+
+          <Pressable
+            testID="space-add"
+            onPress={handleAdd}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Add car item"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: spacing.md + 10,
+              width: 40,
+              height: 40,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surfaceSecondary,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons
+              name="add"
+              size={22}
+              color={colors.onSurface}
+            />
+          </Pressable>
+
+          {/* EDIT */}
+
+          <Pressable
+            testID="space-edit"
+            onPress={handleEdit}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Edit car"
+            style={{
+              position: "absolute",
+              right: 0,
+              top: spacing.md + 10,
+              width: 40,
+              height: 40,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surfaceSecondary,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons
+              name="create-outline"
+              size={19}
+              color={colors.onSurface}
+            />
+          </Pressable>
+
+          {/* CAR ICON */}
+
+          <View
+            style={{
+              width: 68,
+              height: 68,
+              borderRadius: radius.lg,
+              backgroundColor: colors.surfaceSecondary,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: spacing.md,
+            }}
+          >
+            <Ionicons
+              name={(space?.icon || "car-outline") as any}
+              size={32}
+              color={colors.onSurface}
+            />
+          </View>
+
+          {/* NAME */}
+
+          <Text
+            style={{
+              fontSize: 30,
+              lineHeight: 36,
+              fontWeight: "800",
+              color: colors.onSurface,
+              letterSpacing: -0.7,
+            }}
+          >
+            {space?.name || "Car"}
+          </Text>
+
+          {/* VEHICLE DESCRIPTION */}
+
+          <Text
+            style={{
+              marginTop: 4,
+              fontSize: 14,
+              color: colors.onSurfaceTertiary,
+            }}
+          >
+            BMW 320d · 2018
+          </Text>
+        </View>
+
+        {/* =====================================================
+            MAIN STATS
+            ===================================================== */}
+
+        <View
+          style={{
+            flexDirection: "row",
+            gap: spacing.md,
+            marginBottom: spacing.xl,
+          }}
+        >
+          {stats.map((stat) => (
+            <StatCard
+              key={stat.label}
+              {...stat}
+              colors={colors}
+              radius={radius}
+              spacing={spacing}
+            />
+          ))}
+        </View>
+
+        {/* =====================================================
+            NEXT
+            ===================================================== */}
+
+        <SectionTitle
+          title="NEXT"
+          colors={colors}
+        />
+
+        <View
+          style={{
+            gap: spacing.sm,
+            marginBottom: spacing.xl,
+          }}
+        >
+          {nextItems.map((item) => (
+            <InfoRow
+              key={item.id}
+              {...item}
+              colors={colors}
+              radius={radius}
+              spacing={spacing}
+            />
+          ))}
+        </View>
+
+        {/* =====================================================
+            RECENT
+            ===================================================== */}
+
+        <SectionTitle
+          title="RECENT"
+          colors={colors}
+        />
+
+        <View
+          style={{
+            backgroundColor: colors.surfaceSecondary,
+            borderRadius: radius.lg,
+            overflow: "hidden",
+            marginBottom: spacing.xl,
+          }}
+        >
+          {recentItems.map((item, index) => (
+            <RecentRow
+              key={item.id}
+              {...item}
+              colors={colors}
+              spacing={spacing}
+              last={index === recentItems.length - 1}
+            />
+          ))}
+        </View>
+
+        {/* =====================================================
+            QUICK ACTIONS
+            ===================================================== */}
+
+        <SectionTitle
+          title="QUICK ACTIONS"
+          colors={colors}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: spacing.sm,
+          }}
+        >
+          {quickActions.map((action) => (
+            <ActionButton
+              key={action.id}
+              {...action}
+              colors={colors}
+              radius={radius}
+              onPress={() => handleCarAction(action.id)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* =======================================================
+          ADD CAR ACTION MODAL
+          ======================================================= */}
+
+      <CarActionModal
+        ref={carActionModalRef}
+        onAction={handleCarAction}
+      />
+    </>
+  );
+}
+
+/* ============================================================
+   SECTION TITLE
+   ============================================================ */
+
+function SectionTitle({
+  title,
+  colors,
+}: {
+  title: string;
+  colors: any;
+}) {
+  return (
+    <Text
+      style={{
+        fontSize: 12,
+        fontWeight: "800",
+        letterSpacing: 1,
+        color: colors.onSurfaceTertiary,
+        marginBottom: 10,
       }}
     >
-      <CarHeader
-        space={space}
-        onAdd={handleAdd}
-        onEdit={handleEdit}
+      {title}
+    </Text>
+  );
+}
+
+/* ============================================================
+   STAT CARD
+   ============================================================ */
+
+function StatCard({
+  icon,
+  value,
+  label,
+  suffix,
+  colors,
+  radius,
+  spacing,
+}: CarStat & {
+  colors: any;
+  radius: any;
+  spacing: any;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        minHeight: 110,
+        padding: spacing.lg,
+        backgroundColor: colors.surfaceSecondary,
+        borderRadius: radius.lg,
+        justifyContent: "space-between",
+      }}
+    >
+      <Ionicons
+        name={icon}
+        size={19}
+        color={colors.onSurfaceTertiary}
       />
 
-      <CarStats
-        mileage={vehicle.mileage || 0}
-        monthlyCost={620}
-        currency="RON"
+      <View>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "baseline",
+            gap: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "800",
+              color: colors.onSurface,
+              letterSpacing: -0.4,
+            }}
+          >
+            {value}
+          </Text>
+
+          {suffix ? (
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "600",
+                color: colors.onSurfaceTertiary,
+              }}
+            >
+              {suffix}
+            </Text>
+          ) : null}
+        </View>
+
+        <Text
+          style={{
+            marginTop: 2,
+            fontSize: 12,
+            color: colors.onSurfaceTertiary,
+          }}
+        >
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/* ============================================================
+   NEXT / INFO ROW
+   ============================================================ */
+
+function InfoRow({
+  icon,
+  title,
+  subtitle,
+  right,
+  colors,
+  radius,
+  spacing,
+}: CarNextItem & {
+  colors: any;
+  radius: any;
+  spacing: any;
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: colors.surfaceSecondary,
+        borderRadius: radius.lg,
+        padding: spacing.lg,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+      }}
+    >
+      <View
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: radius.md,
+          backgroundColor: colors.surfaceTertiary,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Ionicons
+          name={icon}
+          size={20}
+          color={colors.onSurface}
+        />
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "700",
+            color: colors.onSurface,
+          }}
+        >
+          {title}
+        </Text>
+
+        <Text
+          style={{
+            marginTop: 3,
+            fontSize: 12,
+            color: colors.onSurfaceTertiary,
+          }}
+        >
+          {subtitle}
+        </Text>
+      </View>
+
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: "700",
+          color: colors.onSurfaceTertiary,
+        }}
+      >
+        {right}
+      </Text>
+    </View>
+  );
+}
+
+/* ============================================================
+   RECENT ROW
+   ============================================================ */
+
+function RecentRow({
+  icon,
+  title,
+  subtitle,
+  amount,
+  colors,
+  spacing,
+  last = false,
+}: CarRecentItem & {
+  colors: any;
+  spacing: any;
+  last?: boolean;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        gap: spacing.md,
+        borderBottomWidth: last
+          ? 0
+          : StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border,
+      }}
+    >
+      <Ionicons
+        name={icon}
+        size={20}
+        color={colors.onSurfaceTertiary}
       />
 
-      <CarNextSection
-        items={MOCK_NEXT}
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: "600",
+            color: colors.onSurface,
+          }}
+        >
+          {title}
+        </Text>
+
+        <Text
+          style={{
+            marginTop: 2,
+            fontSize: 12,
+            color: colors.onSurfaceTertiary,
+          }}
+        >
+          {subtitle}
+        </Text>
+      </View>
+
+      {amount ? (
+        <Text
+          style={{
+            fontSize: 14,
+            fontWeight: "700",
+            color: colors.onSurface,
+          }}
+        >
+          {amount}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/* ============================================================
+   QUICK ACTION
+   ============================================================ */
+
+function ActionButton({
+  icon,
+  label,
+  colors,
+  radius,
+  onPress,
+}: CarAction & {
+  colors: any;
+  radius: any;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      testID={`car-action-${label.toLowerCase()}`}
+      onPress={onPress}
+      style={{
+        flexGrow: 1,
+        flexBasis: "46%",
+        minHeight: 48,
+        paddingHorizontal: 14,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.border,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 7,
+      }}
+    >
+      <Ionicons
+        name={icon}
+        size={17}
+        color={colors.onSurface}
       />
 
-      <CarRecentSection
-        items={MOCK_RECENT}
-      />
-
-      <CarQuickActions
-        actions={CAR_ACTIONS}
-        onAction={handleAction}
-      />
-
-      <CarDetails
-        vehicle={vehicle}
-      />
-    </ScrollView>
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: "600",
+          color: colors.onSurface,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }

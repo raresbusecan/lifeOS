@@ -191,8 +191,10 @@ createSpace: (body: {
     body: JSON.stringify(body),
   }),
 
-getSpace: (id: string | number) =>
-  request(`/spaces/${id}`),
+getSpace: async (id: string | number) => {
+  const result = await request<{ space: any }>(`/spaces/${id}`);
+  return result.space;
+},
 
 updateSpace: (
   id: string | number,

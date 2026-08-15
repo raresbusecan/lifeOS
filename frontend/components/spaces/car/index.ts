@@ -1,4 +1,4 @@
-export { CarDashboard } from "./CarDashboard";
+export { default as CarDashboard } from "./CarDashboard";  
 export { CarHeader } from "./CarHeader";
 export { CarStats } from "./CarStats";
 export { CarNextSection } from "./CarNextSection";
