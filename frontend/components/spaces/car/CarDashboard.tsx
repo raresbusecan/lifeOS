@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,10 @@ import {
   type CarActionModalRef,
   type CarActionType,
 } from "./CarActionModal";
+
+import CarFuelForm, {
+  type CarFuelEntry,
+} from "./forms/CarFuelForm";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
@@ -60,20 +64,14 @@ export default function CarDashboard({
 
   const carActionModalRef = useRef<CarActionModalRef>(null);
 
+  const [fuelFormVisible, setFuelFormVisible] = useState(false);
+
+  const [fuelEntries, setFuelEntries] = useState<CarFuelEntry[]>([]);
+
   /*
    * =========================================================
    * TEMPORARY LOCAL CAR DATA
    * =========================================================
-   *
-   * Momentan dashboard-ul folosește date locale.
-   *
-   * Mai târziu acestea vor veni din API/DB:
-   *
-   * - mileage
-   * - monthly expenses
-   * - maintenance
-   * - documents
-   * - recent expenses
    */
 
   const stats: CarStat[] = [
@@ -123,6 +121,15 @@ export default function CarDashboard({
       subtitle: "Aug 8 · 123,380 km",
       amount: "380 RON",
     },
+    ...fuelEntries.map((entry) => ({
+      id: entry.id,
+      icon: "water-outline" as keyof typeof Ionicons.glyphMap,
+      title: "Fuel",
+      subtitle: `${formatDate(entry.date)} · ${formatNumber(
+        entry.odometer,
+      )} km`,
+      amount: `${formatNumber(entry.price)} RON`,
+    })),
   ];
 
   const quickActions: CarAction[] = [
@@ -152,13 +159,10 @@ export default function CarDashboard({
    * =========================================================
    * ADD
    * =========================================================
-   *
-   * Deschide modalul cu acțiunile disponibile pentru CAR.
    */
 
   const handleAdd = () => {
     onAdd?.();
-
     carActionModalRef.current?.present();
   };
 
@@ -166,29 +170,34 @@ export default function CarDashboard({
    * =========================================================
    * CAR ACTION
    * =========================================================
-   *
-   * Momentan doar verificăm că selecția funcționează.
-   *
-   * În etapa următoare:
-   *
-   * fuel        -> FuelForm
-   * maintenance -> MaintenanceForm
-   * expense     -> ExpenseForm
-   * document    -> DocumentForm
-   * mileage     -> MileageForm
    */
 
   const handleCarAction = (action: CarActionType) => {
-    console.log("[DEBUG CAR ACTION]", action);
+    if (action === "fuel") {
+      carActionModalRef.current?.dismiss();
+      setFuelFormVisible(true);
+      return;
+    }
 
     /*
-     * IMPORTANT:
+     * Celelalte acțiuni vor primi formularele lor ulterior:
      *
-     * Nu conectăm încă DB/API aici.
-     *
-     * După ce verificăm flow-ul UI,
-     * vom naviga către formularul corespunzător.
+     * maintenance
+     * expense
+     * document
+     * mileage
      */
+  };
+
+  /*
+   * =========================================================
+   * SAVE FUEL
+   * =========================================================
+   */
+
+  const handleFuelSave = (entry: CarFuelEntry) => {
+    setFuelEntries((current) => [...current, entry]);
+    setFuelFormVisible(false);
   };
 
   /*
@@ -198,10 +207,36 @@ export default function CarDashboard({
    */
 
   const handleEdit = () => {
-    console.log("[DEBUG CAR] EDIT PRESSED");
-
     onEdit?.();
   };
+
+  /*
+   * =========================================================
+   * FUEL FORM
+   * =========================================================
+   */
+
+  if (fuelFormVisible) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.surface,
+        }}
+      >
+        <CarFuelForm
+          onCancel={() => setFuelFormVisible(false)}
+          onSave={handleFuelSave}
+        />
+      </View>
+    );
+  }
+
+  /*
+   * =========================================================
+   * DASHBOARD
+   * =========================================================
+   */
 
   return (
     <>
@@ -755,4 +790,23 @@ function ActionButton({
       </Text>
     </Pressable>
   );
+}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
