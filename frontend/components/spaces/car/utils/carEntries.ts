@@ -1,9 +1,10 @@
+import type { CarRecentItem } from "./carEntries.types";
+
 import type {
   CarDocumentEntry,
   CarExpenseEntry,
   CarFuelEntry,
   CarMaintenanceEntry,
-  CarRecentItem,
 } from "../car.types";
 
 type CarRecentEntries = {

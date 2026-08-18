@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { buildCarRecentItems } from "./utils/carEntries";
+import type { CarRecentItem } from "./utils/carEntries.types";
 
 import {
     View,
@@ -26,7 +27,6 @@ import type {
     CarDocumentEntry,
     CarExpenseEntry,
     CarNextItem,
-    CarRecentItem,
 } from "./car.types";
 
 import { Ionicons } from "@expo/vector-icons";

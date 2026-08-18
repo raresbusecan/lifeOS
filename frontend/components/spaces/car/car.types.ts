@@ -21,14 +21,6 @@ export type CarNextItem = {
   right?: string;
 };
 
-export type CarRecentItem = {
-  id: string | number;
-  icon: CarIcon;
-  title: string;
-  subtitle: string;
-  amount?: number | string;
-  currency?: string;
-};
 
 export type CarFuelEntry = {
   id: string;

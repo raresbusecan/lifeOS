@@ -9,5 +9,5 @@ export { CarDetails } from "./CarDetails";
 export type { CarDashboardProps } from "./CarDashboard";
 export type { CarVehicle } from "./CarDetails";
 export type { CarNextItem } from "./CarNextSection";
-export type { CarRecentItem } from "./CarRecentSection";
+export type { CarRecentItem } from "./utils/carEntries.types";
 export type { CarQuickAction } from "./CarQuickActions";
