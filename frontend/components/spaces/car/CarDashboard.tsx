@@ -1,4 +1,6 @@
 import React, { useRef, useState } from "react";
+import { buildCarRecentItems } from "./utils/carEntries";
+
 import {
     View,
     Text,
@@ -120,63 +122,12 @@ export default function CarDashboard({
         },
     ];
 
-    const recentItems: CarRecentItem[] = [
-        {
-            id: "fuel-1",
-            icon: "water-outline",
-            title: "Fuel",
-            subtitle: "Today · 58 L",
-            amount: "250 RON",
-        },
-        {
-            id: "maintenance-1",
-            icon: "construct-outline",
-            title: "Oil change",
-            subtitle: "Aug 8 · 123,380 km",
-            amount: "380 RON",
-        },
-        ...fuelEntries.map((entry) => ({
-            id: entry.id,
-            icon: "water-outline" as keyof typeof Ionicons.glyphMap,
-            title: "Fuel",
-            subtitle: `${formatDate(entry.date)} · ${formatNumber(
-                entry.odometer,
-            )} km`,
-            amount: `${formatNumber(entry.price)} RON`,
-        })),
-        ...maintenanceEntries.map((entry) => ({
-            id: entry.id,
-            icon: "construct-outline" as keyof typeof Ionicons.glyphMap,
-            title: entry.service,
-            subtitle: `${formatDate(entry.date)} · ${formatNumber(
-                entry.odometer,
-            )} km`,
-            amount: `${formatNumber(entry.price)} RON`,
-        })),
-        ...documentEntries.map((entry) => ({
-            id: entry.id,
-            icon: "document-text-outline" as keyof typeof Ionicons.glyphMap,
-            title: entry.title,
-            subtitle: `${entry.documentType}${entry.expiryDate
-                ? ` · Expires ${entry.expiryDate}`
-                : ""
-                }`,
-            amount:
-                entry.price !== undefined
-                    ? `${formatNumber(entry.price)} RON`
-                    : undefined,
-        })),
-        ...expenseEntries.map((entry) => ({
-            id: entry.id,
-            icon: "receipt-outline" as keyof typeof Ionicons.glyphMap,
-            title: entry.title,
-            subtitle: `${entry.category}${entry.odometer
-                    ? ` · ${formatNumber(entry.odometer)} km`
-                    : ""
-                }`,
-            amount: `${formatNumber(entry.amount)} RON`,
-        })),
-    ];
+    const recentItems = buildCarRecentItems({
+        fuelEntries,
+        maintenanceEntries,
+        documentEntries,
+        expenseEntries,
+    });
 
     const quickActions: CarAction[] = [
         {
@@ -951,17 +902,3 @@ function ActionButton({
    HELPERS
    ============================================================ */
 
-function formatNumber(value: number) {
-    return new Intl.NumberFormat("en-US", {
-        maximumFractionDigits: 2,
-    }).format(value);
-}
-
-function formatDate(value: string) {
-    const date = new Date(value);
-
-    return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-    });
-}
