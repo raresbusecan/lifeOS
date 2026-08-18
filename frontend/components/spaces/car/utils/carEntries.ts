@@ -5,7 +5,7 @@ import type {
   CarExpenseEntry,
   CarFuelEntry,
   CarMaintenanceEntry,
-} from "../car.types";
+} from "@/lib/spaces/car/car.types";
 
 type CarRecentEntries = {
   fuelEntries: CarFuelEntry[];

@@ -22,12 +22,18 @@ import CarDocumentForm from "./forms/CarDocumentForm";
 import CarExpenseForm from "./forms/CarExpenseForm";
 
 import type {
-    CarFuelEntry,
-    CarMaintenanceEntry,
-    CarDocumentEntry,
-    CarExpenseEntry,
-    CarNextItem,
-} from "./car.types";
+  CarDocumentEntry,
+  CarExpenseEntry,
+  CarFuelEntry,
+  CarMaintenanceEntry,
+  CarVehicle,
+} from "@/lib/spaces/car/car.types";
+
+
+import type {
+  CarIcon,
+  CarNextItem,
+} from "./car.ui.types";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";

@@ -1,7 +1,8 @@
 import type {
   CarNextItem,
-  CarVehicle,
-} from "@/components/spaces/car/car.types";
+} from "@/components/spaces/car/car.ui.types";
+
+import type { CarVehicle } from "./car.types";
 
 export const MOCK_VEHICLE: CarVehicle = {
   make: "BMW",

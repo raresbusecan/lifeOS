@@ -1,4 +1,4 @@
-import type { CarIcon } from "../car.types";
+import type { CarIcon } from "../car.ui.types";
 
 export type CarRecentItem = {
   id: string | number;

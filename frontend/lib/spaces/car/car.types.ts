@@ -1,8 +1,3 @@
-import type { ComponentProps } from "react";
-import { Ionicons } from "@expo/vector-icons";
-
-export type CarIcon = ComponentProps<typeof Ionicons>["name"];
-
 export type CarVehicle = {
   make: string;
   model: string;
@@ -12,15 +7,6 @@ export type CarVehicle = {
   fuel_type?: string;
   engine?: string;
 };
-
-export type CarNextItem = {
-  id: string | number;
-  icon: CarIcon;
-  title: string;
-  subtitle: string;
-  right?: string;
-};
-
 
 export type CarFuelEntry = {
   id: string;
@@ -63,16 +49,4 @@ export type CarExpenseEntry = {
   odometer?: number;
   provider?: string;
   notes?: string;
-};
-
-export type CarQuickActionKey =
-  | "fuel"
-  | "maintenance"
-  | "document"
-  | "expense";
-
-export type CarQuickAction = {
-  key: CarQuickActionKey;
-  icon: CarIcon;
-  label: string;
 };
