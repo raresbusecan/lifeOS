@@ -25,6 +25,10 @@ import CarDocumentForm, {
     type CarDocumentEntry,
 } from "./forms/CarDocumentForm";
 
+import CarExpenseForm, {
+    type CarExpenseEntry,
+} from "./forms/CarExpenseForm";
+
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
@@ -88,6 +92,12 @@ export default function CarDashboard({
 
     const [documentEntries, setDocumentEntries] =
         useState<CarDocumentEntry[]>([]);
+
+    const [expenseFormVisible, setExpenseFormVisible] =
+        useState(false);
+
+    const [expenseEntries, setExpenseEntries] =
+        useState<CarExpenseEntry[]>([]);
 
     /*
      * =========================================================
@@ -165,13 +175,23 @@ export default function CarDashboard({
             icon: "document-text-outline" as keyof typeof Ionicons.glyphMap,
             title: entry.title,
             subtitle: `${entry.documentType}${entry.expiryDate
-                    ? ` · Expires ${entry.expiryDate}`
-                    : ""
+                ? ` · Expires ${entry.expiryDate}`
+                : ""
                 }`,
             amount:
                 entry.price !== undefined
                     ? `${formatNumber(entry.price)} RON`
                     : undefined,
+        })),
+        ...expenseEntries.map((entry) => ({
+            id: entry.id,
+            icon: "receipt-outline" as keyof typeof Ionicons.glyphMap,
+            title: entry.title,
+            subtitle: `${entry.category}${entry.odometer
+                    ? ` · ${formatNumber(entry.odometer)} km`
+                    : ""
+                }`,
+            amount: `${formatNumber(entry.amount)} RON`,
         })),
     ];
 
@@ -234,6 +254,12 @@ export default function CarDashboard({
             return;
         }
 
+        if (action === "expense") {
+            carActionModalRef.current?.dismiss();
+            setExpenseFormVisible(true);
+            return;
+        }
+
         /*
          * Celelalte acțiuni vor primi formularele lor ulterior:
          *
@@ -277,6 +303,18 @@ export default function CarDashboard({
         ]);
 
         setDocumentFormVisible(false);
+    };
+
+
+    const handleExpenseSave = (
+        entry: CarExpenseEntry,
+    ) => {
+        setExpenseEntries((current) => [
+            ...current,
+            entry,
+        ]);
+
+        setExpenseFormVisible(false);
     };
 
     /*
@@ -342,6 +380,25 @@ export default function CarDashboard({
                         setDocumentFormVisible(false)
                     }
                     onSave={handleDocumentSave}
+                />
+            </View>
+        );
+    }
+
+
+    if (expenseFormVisible) {
+        return (
+            <View
+                style={{
+                    flex: 1,
+                    backgroundColor: colors.surface,
+                }}
+            >
+                <CarExpenseForm
+                    onCancel={() =>
+                        setExpenseFormVisible(false)
+                    }
+                    onSave={handleExpenseSave}
                 />
             </View>
         );
