@@ -21,6 +21,10 @@ import CarMaintenanceForm, {
     type CarMaintenanceEntry,
 } from "./forms/CarMaintenanceForm";
 
+import CarDocumentForm, {
+    type CarDocumentEntry,
+} from "./forms/CarDocumentForm";
+
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
@@ -77,6 +81,13 @@ export default function CarDashboard({
 
     const [maintenanceEntries, setMaintenanceEntries] =
         useState<CarMaintenanceEntry[]>([]);
+
+
+    const [documentFormVisible, setDocumentFormVisible] =
+        useState(false);
+
+    const [documentEntries, setDocumentEntries] =
+        useState<CarDocumentEntry[]>([]);
 
     /*
      * =========================================================
@@ -149,6 +160,19 @@ export default function CarDashboard({
             )} km`,
             amount: `${formatNumber(entry.price)} RON`,
         })),
+        ...documentEntries.map((entry) => ({
+            id: entry.id,
+            icon: "document-text-outline" as keyof typeof Ionicons.glyphMap,
+            title: entry.title,
+            subtitle: `${entry.documentType}${entry.expiryDate
+                    ? ` · Expires ${entry.expiryDate}`
+                    : ""
+                }`,
+            amount:
+                entry.price !== undefined
+                    ? `${formatNumber(entry.price)} RON`
+                    : undefined,
+        })),
     ];
 
     const quickActions: CarAction[] = [
@@ -204,6 +228,12 @@ export default function CarDashboard({
             return;
         }
 
+        if (action === "document") {
+            carActionModalRef.current?.dismiss();
+            setDocumentFormVisible(true);
+            return;
+        }
+
         /*
          * Celelalte acțiuni vor primi formularele lor ulterior:
          *
@@ -235,6 +265,18 @@ export default function CarDashboard({
         ]);
 
         setMaintenanceFormVisible(false);
+    };
+
+
+    const handleDocumentSave = (
+        entry: CarDocumentEntry,
+    ) => {
+        setDocumentEntries((current) => [
+            ...current,
+            entry,
+        ]);
+
+        setDocumentFormVisible(false);
     };
 
     /*
@@ -282,6 +324,24 @@ export default function CarDashboard({
                         setMaintenanceFormVisible(false)
                     }
                     onSave={handleMaintenanceSave}
+                />
+            </View>
+        );
+    }
+
+    if (documentFormVisible) {
+        return (
+            <View
+                style={{
+                    flex: 1,
+                    backgroundColor: colors.surface,
+                }}
+            >
+                <CarDocumentForm
+                    onCancel={() =>
+                        setDocumentFormVisible(false)
+                    }
+                    onSave={handleDocumentSave}
                 />
             </View>
         );
