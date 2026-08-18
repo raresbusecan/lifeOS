@@ -11,16 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
-export type CarMaintenanceEntry = {
-  id: string;
-  date: string;
-  service: string;
-  description: string;
-  price: number;
-  odometer: number;
-  provider?: string;
-  nextServiceOdometer?: number;
-};
+import type { CarMaintenanceEntry } from "../car.types";
 
 type CarMaintenanceFormProps = {
   onCancel: () => void;

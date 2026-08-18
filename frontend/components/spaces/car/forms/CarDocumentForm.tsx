@@ -11,17 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
-export type CarDocumentEntry = {
-  id: string;
-  date: string;
-  documentType: string;
-  title: string;
-  issuer?: string;
-  issueDate?: string;
-  expiryDate?: string;
-  price?: number;
-  notes?: string;
-};
+import type { CarDocumentEntry } from "../car.types";
 
 type CarDocumentFormProps = {
   onCancel: () => void;

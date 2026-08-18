@@ -13,21 +13,19 @@ import {
     type CarActionType,
 } from "./CarActionModal";
 
-import CarFuelForm, {
-    type CarFuelEntry,
-} from "./forms/CarFuelForm";
+import CarFuelForm from "./forms/CarFuelForm";
+import CarMaintenanceForm from "./forms/CarMaintenanceForm";
+import CarDocumentForm from "./forms/CarDocumentForm";
+import CarExpenseForm from "./forms/CarExpenseForm";
 
-import CarMaintenanceForm, {
-    type CarMaintenanceEntry,
-} from "./forms/CarMaintenanceForm";
-
-import CarDocumentForm, {
-    type CarDocumentEntry,
-} from "./forms/CarDocumentForm";
-
-import CarExpenseForm, {
-    type CarExpenseEntry,
-} from "./forms/CarExpenseForm";
+import type {
+    CarFuelEntry,
+    CarMaintenanceEntry,
+    CarDocumentEntry,
+    CarExpenseEntry,
+    CarNextItem,
+    CarRecentItem,
+} from "./car.types";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
@@ -45,21 +43,6 @@ type CarStat = {
     suffix?: string;
 };
 
-type CarNextItem = {
-    id: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    title: string;
-    subtitle: string;
-    right: string;
-};
-
-type CarRecentItem = {
-    id: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    title: string;
-    subtitle: string;
-    amount?: string;
-};
 
 type CarAction = {
     id: CarActionType;
