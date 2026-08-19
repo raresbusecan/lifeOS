@@ -1,5 +1,10 @@
 import type { CarRecentItem } from "./carEntries.types";
 
+import {
+  formatCarDate,
+  formatCarNumber,
+} from "./carFormatters";
+
 import type {
   CarDocumentEntry,
   CarExpenseEntry,
@@ -14,15 +19,6 @@ type CarRecentEntries = {
   expenseEntries: CarExpenseEntry[];
 };
 
-const formatNumber = (value: number) =>
-  new Intl.NumberFormat("en-US").format(value);
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-};
 
 export const buildCarRecentItems = ({
   fuelEntries,
@@ -35,20 +31,20 @@ export const buildCarRecentItems = ({
       id: entry.id,
       icon: "water-outline" as const,
       title: "Fuel",
-      subtitle: `${formatDate(entry.date)} · ${formatNumber(
+      subtitle: `${formatCarDate(entry.date)} · ${formatCarNumber(
         entry.odometer,
       )} km`,
-      amount: `${formatNumber(entry.price)} RON`,
+      amount: `${formatCarNumber(entry.price)} RON`,
     })),
 
     ...maintenanceEntries.map((entry) => ({
       id: entry.id,
       icon: "construct-outline" as const,
       title: entry.service,
-      subtitle: `${formatDate(entry.date)} · ${formatNumber(
+      subtitle: `${formatCarDate(entry.date)} · ${formatCarNumber(
         entry.odometer,
       )} km`,
-      amount: `${formatNumber(entry.price)} RON`,
+      amount: `${formatCarNumber(entry.price)} RON`,
     })),
 
     ...documentEntries.map((entry) => ({
@@ -62,7 +58,7 @@ export const buildCarRecentItems = ({
       }`,
       amount:
         entry.price !== undefined
-          ? `${formatNumber(entry.price)} RON`
+          ? `${formatCarNumber(entry.price)} RON`
           : undefined,
     })),
 
@@ -72,10 +68,10 @@ export const buildCarRecentItems = ({
       title: entry.title,
       subtitle: `${entry.category}${
         entry.odometer
-          ? ` · ${formatNumber(entry.odometer)} km`
+          ? ` · ${formatCarNumber(entry.odometer)} km`
           : ""
       }`,
-      amount: `${formatNumber(entry.amount)} RON`,
+      amount: `${formatCarNumber(entry.amount)} RON`,
     })),
   ];
 };
