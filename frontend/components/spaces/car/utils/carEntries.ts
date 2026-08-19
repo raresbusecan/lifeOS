@@ -31,21 +31,6 @@ export const buildCarRecentItems = ({
   expenseEntries,
 }: CarRecentEntries): CarRecentItem[] => {
   return [
-    {
-      id: "fuel-1",
-      icon: "water-outline",
-      title: "Fuel",
-      subtitle: "Today · 58 L",
-      amount: "250 RON",
-    },
-    {
-      id: "maintenance-1",
-      icon: "construct-outline",
-      title: "Oil change",
-      subtitle: "Aug 8 · 123,380 km",
-      amount: "380 RON",
-    },
-
     ...fuelEntries.map((entry) => ({
       id: entry.id,
       icon: "water-outline" as const,
