@@ -22,3 +22,16 @@ export type CarQuickAction = {
   icon: CarIcon;
   label: string;
 };
+
+export type CarSection =
+  | "overview"
+  | "fuel"
+  | "maintenance"
+  | "documents"
+  | "expenses"
+  | "mileage";
+
+export type CarSectionConfig = {
+  key: CarSection;
+  title: string;
+};
