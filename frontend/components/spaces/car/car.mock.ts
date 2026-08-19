@@ -1,6 +1,6 @@
 import type { CarData } from "./car.data.types";
 
-export const mockCarData: CarData = {
+export const initialCarData: CarData = {
   vehicle: {
     make: "BMW",
     model: "320d",

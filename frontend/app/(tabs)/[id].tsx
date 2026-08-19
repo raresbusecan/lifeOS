@@ -21,7 +21,15 @@ import { useTheme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import CarDashboard from "@/components/spaces/car/CarDashboard";
 
-import { mockCarData } from "@/components/spaces/car/car.mock";
+import { initialCarData } from "@/components/spaces/car/car.mock";
+import type { CarData } from "@/components/spaces/car/car.data.types";
+
+import type {
+  CarDocumentEntry,
+  CarExpenseEntry,
+  CarFuelEntry,
+  CarMaintenanceEntry,
+} from "@/lib/spaces/car/car.types";
 
 export default function SpaceDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,8 +37,37 @@ export default function SpaceDetail() {
   const { colors } = useTheme();
   const router = useRouter();
 
+  const [carData, setCarData] = useState<CarData>(initialCarData);
   const [space, setSpace] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleFuelSave = (entry: CarFuelEntry) => {
+    setCarData((current) => ({
+      ...current,
+      fuelEntries: [...current.fuelEntries, entry],
+    }));
+  };
+
+  const handleMaintenanceSave = (entry: CarMaintenanceEntry) => {
+    setCarData((current) => ({
+      ...current,
+      maintenanceEntries: [...current.maintenanceEntries, entry],
+    }));
+  };
+
+  const handleDocumentSave = (entry: CarDocumentEntry) => {
+    setCarData((current) => ({
+      ...current,
+      documentEntries: [...current.documentEntries, entry],
+    }));
+  };
+
+  const handleExpenseSave = (entry: CarExpenseEntry) => {
+    setCarData((current) => ({
+      ...current,
+      expenseEntries: [...current.expenseEntries, entry],
+    }));
+  };
 
   /*
    * ==========================================================
@@ -303,9 +340,13 @@ export default function SpaceDetail() {
       >
         <CarDashboard
           space={space}
-          carData={mockCarData}
+          carData={carData}
           onAdd={handleAdd}
           onEdit={handleEdit}
+          onFuelSave={handleFuelSave}
+          onMaintenanceSave={handleMaintenanceSave}
+          onDocumentSave={handleDocumentSave}
+          onExpenseSave={handleExpenseSave}
         />
       </SafeAreaView>
     );
