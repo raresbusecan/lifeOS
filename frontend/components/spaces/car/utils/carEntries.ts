@@ -7,6 +7,11 @@ import type {
   CarMaintenanceEntry,
 } from "@/lib/spaces/car/car.types";
 
+import {
+  formatDate,
+  formatNumber,
+} from "./carFormatters";
+
 type CarRecentEntries = {
   fuelEntries: CarFuelEntry[];
   maintenanceEntries: CarMaintenanceEntry[];
@@ -14,15 +19,6 @@ type CarRecentEntries = {
   expenseEntries: CarExpenseEntry[];
 };
 
-const formatNumber = (value: number) =>
-  new Intl.NumberFormat("en-US").format(value);
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-};
 
 export const buildCarRecentItems = ({
   fuelEntries,
