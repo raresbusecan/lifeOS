@@ -21,6 +21,8 @@ import { useTheme } from "@/lib/theme";
 import { api } from "@/lib/api";
 import CarDashboard from "@/components/spaces/car/CarDashboard";
 
+import { mockCarData } from "@/components/spaces/car/car.mock";
+
 export default function SpaceDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -47,31 +49,31 @@ export default function SpaceDetail() {
    */
 
   const load = useCallback(async () => {
-  if (!id) return;
+    if (!id) return;
 
-  try {
-    const result = await api.getSpace(id);
+    try {
+      const result = await api.getSpace(id);
 
-    console.log("================================");
-    console.log("[SPACE DATA]");
-    console.log("ID:", id);
-    console.log("RESULT:", result);
-    console.log("TYPE:", result?.type);
-    console.log("SLUG:", result?.slug);
-    console.log("KIND:", result?.kind);
-    console.log("NAME:", result?.name);
-    console.log("ICON:", result?.icon);
-    console.log("================================");
+      console.log("================================");
+      console.log("[SPACE DATA]");
+      console.log("ID:", id);
+      console.log("RESULT:", result);
+      console.log("TYPE:", result?.type);
+      console.log("SLUG:", result?.slug);
+      console.log("KIND:", result?.kind);
+      console.log("NAME:", result?.name);
+      console.log("ICON:", result?.icon);
+      console.log("================================");
 
-    setSpace(result);
-  } catch (error) {
-    console.error("[SPACE] failed to load:", error);
-  }
-}, [id]);
+      setSpace(result);
+    } catch (error) {
+      console.error("[SPACE] failed to load:", error);
+    }
+  }, [id]);
 
-console.log("[SPACE DETAIL] space:", space);
-console.log("[SPACE DETAIL] space name:", space?.name);
-console.log("[SPACE DETAIL] space icon:", space?.icon);
+  console.log("[SPACE DETAIL] space:", space);
+  console.log("[SPACE DETAIL] space name:", space?.name);
+  console.log("[SPACE DETAIL] space icon:", space?.icon);
 
   /*
    * ==========================================================
@@ -273,9 +275,9 @@ console.log("[SPACE DETAIL] space icon:", space?.icon);
 
   const spaceType = String(
     space.type ||
-      space.slug ||
-      space.kind ||
-      "",
+    space.slug ||
+    space.kind ||
+    "",
   ).toLowerCase();
 
   const isCar =
@@ -301,6 +303,7 @@ console.log("[SPACE DETAIL] space icon:", space?.icon);
       >
         <CarDashboard
           space={space}
+          carData={mockCarData}
           onAdd={handleAdd}
           onEdit={handleEdit}
         />

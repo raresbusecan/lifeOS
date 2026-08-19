@@ -38,10 +38,17 @@ import type {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
+import type { CarData } from "./car.data.types";
+
 export type CarDashboardProps = {
     space: any;
+    carData: CarData;
     onAdd?: () => void;
     onEdit?: () => void;
+    onFuelSave?: (entry: CarFuelEntry) => void;
+    onMaintenanceSave?: (entry: CarMaintenanceEntry) => void;
+    onDocumentSave?: (entry: CarDocumentEntry) => void;
+    onExpenseSave?: (entry: CarExpenseEntry) => void;
 };
 
 type CarStat = {
@@ -60,8 +67,13 @@ type CarAction = {
 
 export default function CarDashboard({
     space,
+    carData,
     onAdd,
     onEdit,
+    onFuelSave,
+    onMaintenanceSave,
+    onDocumentSave,
+    onExpenseSave,
 }: CarDashboardProps) {
     const { colors, spacing, radius } = useTheme();
 
@@ -69,26 +81,17 @@ export default function CarDashboard({
 
     const [fuelFormVisible, setFuelFormVisible] = useState(false);
 
-    const [fuelEntries, setFuelEntries] = useState<CarFuelEntry[]>([]);
 
     const [maintenanceFormVisible, setMaintenanceFormVisible] =
         useState(false);
-
-    const [maintenanceEntries, setMaintenanceEntries] =
-        useState<CarMaintenanceEntry[]>([]);
 
 
     const [documentFormVisible, setDocumentFormVisible] =
         useState(false);
 
-    const [documentEntries, setDocumentEntries] =
-        useState<CarDocumentEntry[]>([]);
-
     const [expenseFormVisible, setExpenseFormVisible] =
         useState(false);
-
-    const [expenseEntries, setExpenseEntries] =
-        useState<CarExpenseEntry[]>([]);
+        
 
     /*
      * =========================================================
@@ -129,10 +132,10 @@ export default function CarDashboard({
     ];
 
     const recentItems = buildCarRecentItems({
-        fuelEntries,
-        maintenanceEntries,
-        documentEntries,
-        expenseEntries,
+        fuelEntries: carData.fuelEntries,
+        maintenanceEntries: carData.maintenanceEntries,
+        documentEntries: carData.documentEntries,
+        expenseEntries: carData.expenseEntries,
     });
 
     const quickActions: CarAction[] = [
@@ -217,43 +220,24 @@ export default function CarDashboard({
      */
 
     const handleFuelSave = (entry: CarFuelEntry) => {
-        setFuelEntries((current) => [...current, entry]);
+        onFuelSave?.(entry);
         setFuelFormVisible(false);
     };
 
-
-    const handleMaintenanceSave = (
-        entry: CarMaintenanceEntry,
-    ) => {
-        setMaintenanceEntries((current) => [
-            ...current,
-            entry,
-        ]);
-
+    const handleMaintenanceSave = (entry: CarMaintenanceEntry) => {
+        onMaintenanceSave?.(entry);
         setMaintenanceFormVisible(false);
     };
 
 
-    const handleDocumentSave = (
-        entry: CarDocumentEntry,
-    ) => {
-        setDocumentEntries((current) => [
-            ...current,
-            entry,
-        ]);
-
+    const handleDocumentSave = (entry: CarDocumentEntry) => {
+        onDocumentSave?.(entry);
         setDocumentFormVisible(false);
     };
 
 
-    const handleExpenseSave = (
-        entry: CarExpenseEntry,
-    ) => {
-        setExpenseEntries((current) => [
-            ...current,
-            entry,
-        ]);
-
+    const handleExpenseSave = (entry: CarExpenseEntry) => {
+        onExpenseSave?.(entry);
         setExpenseFormVisible(false);
     };
 
