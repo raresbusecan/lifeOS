@@ -39,6 +39,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
 import type { CarData } from "./car.data.types";
+import {
+    getCurrentOdometer,
+    getThisMonthExpenses,
+    getUpcomingItems,
+} from "@/lib/spaces/car/calculations/dashboard.calculations";
 
 export type CarDashboardProps = {
     space: any;
@@ -99,41 +104,29 @@ export default function CarDashboard({
 
     /*
      * =========================================================
-     * TEMPORARY LOCAL CAR DATA
+     * CALCULATED CAR DATA
      * =========================================================
      */
+
+    const currentOdometer = getCurrentOdometer(carData);
+    const thisMonthExpenses = getThisMonthExpenses(carData);
 
     const stats: CarStat[] = [
         {
             icon: "speedometer-outline",
-            value: "124,580",
+            value: currentOdometer.toLocaleString("en-US"),
             label: "Mileage",
             suffix: "km",
         },
         {
             icon: "wallet-outline",
-            value: "620",
+            value: thisMonthExpenses.toLocaleString("en-US"),
             label: "This month",
             suffix: "RON",
         },
     ];
 
-    const nextItems: CarNextItem[] = [
-        {
-            id: "oil-change",
-            icon: "construct-outline",
-            title: "Oil change",
-            subtitle: "Due in 1,200 km",
-            right: "Soon",
-        },
-        {
-            id: "rca",
-            icon: "document-text-outline",
-            title: "RCA",
-            subtitle: "Expires in 42 days",
-            right: "Oct 12",
-        },
-    ];
+    const nextItems: CarNextItem[] = getUpcomingItems(carData, currentOdometer);
 
     const recentItems = buildCarRecentItems({
         fuelEntries: carData.fuelEntries,
@@ -541,27 +534,31 @@ export default function CarDashboard({
             NEXT
             ===================================================== */}
 
-                <SectionTitle
-                    title="NEXT"
-                    colors={colors}
-                />
-
-                <View
-                    style={{
-                        gap: spacing.sm,
-                        marginBottom: spacing.xl,
-                    }}
-                >
-                    {nextItems.map((item) => (
-                        <InfoRow
-                            key={item.id}
-                            {...item}
+                {nextItems.length > 0 && (
+                    <>
+                        <SectionTitle
+                            title="NEXT"
                             colors={colors}
-                            radius={radius}
-                            spacing={spacing}
                         />
-                    ))}
-                </View>
+
+                        <View
+                            style={{
+                                gap: spacing.sm,
+                                marginBottom: spacing.xl,
+                            }}
+                        >
+                            {nextItems.map((item) => (
+                                <InfoRow
+                                    key={item.id}
+                                    {...item}
+                                    colors={colors}
+                                    radius={radius}
+                                    spacing={spacing}
+                                />
+                            ))}
+                        </View>
+                    </>
+                )}
 
                 {/* =====================================================
             RECENT
