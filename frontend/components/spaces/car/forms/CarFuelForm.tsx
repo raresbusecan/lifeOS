@@ -7,18 +7,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from "react-native";
+import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
-import type { CarFuelEntry } from "@/lib/spaces/car/car.types";
+import type { CarFuelEntry, CarVehicle } from "@/lib/spaces/car/car.types";
 
 type CarFuelFormProps = {
+  vehicle: CarVehicle;
+  fuelEntries: CarFuelEntry[];
   onCancel: () => void;
   onSave: (entry: CarFuelEntry) => void;
 };
 
 export default function CarFuelForm({
+  vehicle,
+  fuelEntries,
   onCancel,
   onSave,
 }: CarFuelFormProps) {
@@ -28,6 +34,12 @@ export default function CarFuelForm({
   const [price, setPrice] = useState("");
   const [odometer, setOdometer] = useState("");
   const [station, setStation] = useState("");
+
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+
+  const [levelBefore, setLevelBefore] = useState<number | null>(null);
+  const [levelAfter, setLevelAfter] = useState<number | null>(null);
 
   const [error, setError] = useState("");
 
@@ -53,13 +65,23 @@ export default function CarFuelForm({
       return;
     }
 
+    if (levelBefore === null || levelAfter === null) {
+      Alert.alert(
+        "Missing tank level",
+        "Please select both tank levels before saving.",
+      );
+      return;
+    }
+
     const entry: CarFuelEntry = {
       id: `fuel-${Date.now()}`,
       date: new Date().toISOString(),
       liters: litersValue,
-      price: priceValue,
+      total_paid: priceValue,
       odometer: odometerValue,
       station: station.trim() || undefined,
+      level_before: levelBefore,
+      level_after: levelAfter,
     };
 
     onSave(entry);
@@ -159,6 +181,73 @@ export default function CarFuelForm({
           </Pressable>
         </View>
 
+
+        <View>
+          <Text
+            style={{
+              marginBottom: spacing.sm,
+              fontSize: 12,
+              fontWeight: "700",
+              color: colors.onSurfaceTertiary,
+            }}
+          >
+            Tank level before
+          </Text>
+          <Slider
+            minimumValue={0}
+            maximumValue={100}
+            step={1}
+            value={levelBefore ?? 0}
+            onValueChange={setLevelBefore}
+            minimumTrackTintColor={colors.onSurface}
+            maximumTrackTintColor={colors.border}
+            thumbTintColor={colors.onSurface}
+          />
+
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "700",
+              color: colors.onSurface,
+            }}
+          >
+            {levelBefore ?? 0}%
+          </Text>
+        </View>
+
+        <View>
+          <Text
+            style={{
+              marginBottom: spacing.sm,
+              fontSize: 12,
+              fontWeight: "700",
+              color: colors.onSurfaceTertiary,
+            }}
+          >
+            Tank level after
+          </Text>
+          <Slider
+            minimumValue={0}
+            maximumValue={100}
+            step={1}
+            value={levelAfter ?? 0}
+            onValueChange={setLevelAfter}
+            minimumTrackTintColor={colors.onSurface}
+            maximumTrackTintColor={colors.border}
+            thumbTintColor={colors.onSurface}
+          />
+
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "700",
+              color: colors.onSurface,
+            }}
+          >
+            {levelAfter ?? 0}%
+          </Text>
+        </View>
+
         {/* Liters */}
 
         <FormField
@@ -170,7 +259,14 @@ export default function CarFuelForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="liters"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
+
+
+
 
         {/* Price */}
 
@@ -184,6 +280,10 @@ export default function CarFuelForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="price"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Odometer */}
@@ -198,6 +298,10 @@ export default function CarFuelForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="odometer"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Station */}
@@ -210,6 +314,10 @@ export default function CarFuelForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="station"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Error */}
@@ -301,6 +409,10 @@ type FormFieldProps = {
   colors: any;
   spacing: any;
   radius: any;
+  fieldName: string;
+  focusedField: string | null;
+  onFocus: (field: string) => void;
+  onBlur: () => void;
 };
 
 function FormField({
@@ -313,9 +425,15 @@ function FormField({
   colors,
   spacing,
   radius,
+  fieldName,
+  focusedField,
+  onFocus,
+  onBlur,
 }: FormFieldProps) {
+  const isFocused = focusedField === fieldName;
+
   return (
-    <View style={{ marginBottom: spacing.lg }}>
+    <View style={{ marginBottom: spacing.xl }}>
       <Text
         style={{
           marginBottom: spacing.sm,
@@ -332,8 +450,10 @@ function FormField({
           minHeight: 52,
           borderRadius: radius.md,
           backgroundColor: colors.surfaceSecondary,
-          borderWidth: 1,
-          borderColor: colors.border,
+          borderWidth: isFocused ? 2 : 1,
+          borderColor: isFocused
+            ? colors.onSurface
+            : colors.border,
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: spacing.md,
@@ -345,11 +465,14 @@ function FormField({
           placeholder={placeholder}
           placeholderTextColor={colors.onSurfaceTertiary}
           keyboardType={keyboardType}
+          onFocus={() => onFocus(fieldName)}
+          onBlur={onBlur}
           style={{
             flex: 1,
             fontSize: 15,
             color: colors.onSurface,
             paddingVertical: 0,
+            borderWidth: 0,
           }}
         />
 

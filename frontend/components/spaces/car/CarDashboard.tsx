@@ -22,17 +22,17 @@ import CarDocumentForm from "./forms/CarDocumentForm";
 import CarExpenseForm from "./forms/CarExpenseForm";
 
 import type {
-  CarDocumentEntry,
-  CarExpenseEntry,
-  CarFuelEntry,
-  CarMaintenanceEntry,
-  CarVehicle,
+    CarDocumentEntry,
+    CarExpenseEntry,
+    CarFuelEntry,
+    CarMaintenanceEntry,
+    CarVehicle,
 } from "@/lib/spaces/car/car.types";
 
 
 import type {
-  CarIcon,
-  CarNextItem,
+    CarIcon,
+    CarNextItem,
 } from "./car.ui.types";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -91,7 +91,7 @@ export default function CarDashboard({
 
     const [expenseFormVisible, setExpenseFormVisible] =
         useState(false);
-        
+
 
     /*
      * =========================================================
@@ -266,6 +266,8 @@ export default function CarDashboard({
                 }}
             >
                 <CarFuelForm
+                    vehicle={carData.vehicle}
+                    fuelEntries={carData.fuelEntries}
                     onCancel={() => setFuelFormVisible(false)}
                     onSave={handleFuelSave}
                 />

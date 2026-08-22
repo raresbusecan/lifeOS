@@ -6,14 +6,17 @@ export type CarVehicle = {
   mileage: number;
   fuel_type?: string;
   engine?: string;
+  tank_capacity_liters: number;
 };
 
 export type CarFuelEntry = {
   id: string;
   date: string;
   liters: number;
-  price: number;
+  total_paid: number;
   odometer: number;
+  level_before:number;
+  level_after:number;
   station?: string;
 };
 
