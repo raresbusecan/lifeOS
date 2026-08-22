@@ -61,10 +61,22 @@ export default function SpaceDetail() {
   };
 
   const handleMaintenanceSave = (entry: CarMaintenanceEntry) => {
-    setCarData((current) => ({
-      ...current,
-      maintenanceEntries: [...current.maintenanceEntries, entry],
-    }));
+    setCarData((current) => {
+      const isExisting = current.maintenanceEntries.some(
+        (e) => e.id === entry.id,
+      );
+
+      const maintenanceEntries = isExisting
+        ? current.maintenanceEntries.map((e) =>
+            e.id === entry.id ? entry : e,
+          )
+        : [...current.maintenanceEntries, entry];
+
+      return {
+        ...current,
+        maintenanceEntries,
+      };
+    });
   };
 
   const handleDocumentSave = (entry: CarDocumentEntry) => {

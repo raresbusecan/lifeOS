@@ -42,6 +42,8 @@ export default function CarDocumentForm({
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
 
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
   const [error, setError] = useState("");
 
   const handleSave = () => {
@@ -278,6 +280,10 @@ export default function CarDocumentForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="title"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Issuer */}
@@ -290,6 +296,10 @@ export default function CarDocumentForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="issuer"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Issue Date */}
@@ -303,6 +313,10 @@ export default function CarDocumentForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="issueDate"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Expiry Date */}
@@ -316,6 +330,10 @@ export default function CarDocumentForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="expiryDate"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Price */}
@@ -330,6 +348,10 @@ export default function CarDocumentForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="price"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Notes */}
@@ -343,6 +365,10 @@ export default function CarDocumentForm({
           spacing={spacing}
           radius={radius}
           multiline
+          fieldName="notes"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Error */}
@@ -436,6 +462,10 @@ type FormFieldProps = {
   colors: any;
   spacing: any;
   radius: any;
+  fieldName: string;
+  focusedField: string | null;
+  onFocus: (field: string) => void;
+  onBlur: () => void;
 };
 
 function FormField({
@@ -449,9 +479,15 @@ function FormField({
   colors,
   spacing,
   radius,
+  fieldName,
+  focusedField,
+  onFocus,
+  onBlur,
 }: FormFieldProps) {
+  const isFocused = focusedField === fieldName;
+
   return (
-    <View style={{ marginBottom: spacing.lg }}>
+    <View style={{ marginBottom: spacing.xl }}>
       <Text
         style={{
           marginBottom: spacing.sm,
@@ -469,8 +505,10 @@ function FormField({
           borderRadius: radius.md,
           backgroundColor:
             colors.surfaceSecondary,
-          borderWidth: 1,
-          borderColor: colors.border,
+          borderWidth: isFocused ? 2 : 1,
+          borderColor: isFocused
+            ? colors.onSurface
+            : colors.border,
           flexDirection: "row",
           alignItems: multiline
             ? "flex-start"
@@ -493,12 +531,15 @@ function FormField({
           textAlignVertical={
             multiline ? "top" : "center"
           }
-          style={{
+          onFocus={() => onFocus(fieldName)}
+          onBlur={onBlur}
+          style={[{
             flex: 1,
             fontSize: 15,
             color: colors.onSurface,
             paddingVertical: 0,
-          }}
+            borderWidth: 0,
+          }, Platform.OS === "web" && { outlineStyle: "none" } as any]}
         />
 
         {suffix ? (

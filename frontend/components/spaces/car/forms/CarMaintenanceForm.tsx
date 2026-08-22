@@ -12,25 +12,42 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
 import type { CarMaintenanceEntry } from "@/lib/spaces/car/car.types";
+import { validateMaintenanceEntry } from "@/lib/spaces/car/validation/maintenance.validation";
 
 type CarMaintenanceFormProps = {
   onCancel: () => void;
   onSave: (entry: CarMaintenanceEntry) => void;
+  /** Pass an existing entry to edit it instead of creating a new one. */
+  entry?: CarMaintenanceEntry;
 };
 
 export default function CarMaintenanceForm({
   onCancel,
   onSave,
+  entry,
 }: CarMaintenanceFormProps) {
+  const isEditing = entry !== undefined;
+
   const { colors, spacing, radius } = useTheme();
 
-  const [service, setService] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [odometer, setOdometer] = useState("");
-  const [provider, setProvider] = useState("");
-  const [nextServiceOdometer, setNextServiceOdometer] =
-    useState("");
+  const [service, setService] = useState(entry?.service ?? "");
+  const [description, setDescription] = useState(
+    entry?.description ?? "",
+  );
+  const [price, setPrice] = useState(
+    entry ? String(entry.price) : "",
+  );
+  const [odometer, setOdometer] = useState(
+    entry ? String(entry.odometer) : "",
+  );
+  const [provider, setProvider] = useState(entry?.provider ?? "");
+  const [nextServiceOdometer, setNextServiceOdometer] = useState(
+    entry?.nextServiceOdometer
+      ? String(entry.nextServiceOdometer)
+      : "",
+  );
+
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [error, setError] = useState("");
 
@@ -46,53 +63,7 @@ export default function CarMaintenanceForm({
       ? Number(nextServiceOdometer.replace(",", "."))
       : undefined;
 
-    if (!service.trim()) {
-      setError("Please enter the service type.");
-      return;
-    }
-
-    if (!description.trim()) {
-      setError("Please enter a description.");
-      return;
-    }
-
-    if (!price || !priceValue || priceValue <= 0) {
-      setError("Please enter a valid price.");
-      return;
-    }
-
-    if (
-      !odometer ||
-      !odometerValue ||
-      odometerValue <= 0
-    ) {
-      setError("Please enter a valid odometer value.");
-      return;
-    }
-
-    if (
-      nextServiceOdometer &&
-      (!nextServiceValue || nextServiceValue <= 0)
-    ) {
-      setError(
-        "Please enter a valid next service odometer value.",
-      );
-      return;
-    }
-
-    if (
-      nextServiceValue !== undefined &&
-      nextServiceValue <= odometerValue
-    ) {
-      setError(
-        "Next service mileage must be greater than the current odometer.",
-      );
-      return;
-    }
-
-    const entry: CarMaintenanceEntry = {
-      id: `maintenance-${Date.now()}`,
-      date: new Date().toISOString(),
+    const draftEntry: Omit<CarMaintenanceEntry, "id" | "date"> = {
       service: service.trim(),
       description: description.trim(),
       price: priceValue,
@@ -101,7 +72,20 @@ export default function CarMaintenanceForm({
       nextServiceOdometer: nextServiceValue,
     };
 
-    onSave(entry);
+    const result = validateMaintenanceEntry(draftEntry);
+
+    if (!result.valid) {
+      setError(result.error ?? "Please check the entered values.");
+      return;
+    }
+
+    const entryToSave: CarMaintenanceEntry = {
+      id: entry?.id ?? `maintenance-${Date.now()}`,
+      date: entry?.date ?? new Date().toISOString(),
+      ...draftEntry,
+    };
+
+    onSave(entryToSave);
   };
 
   return (
@@ -164,7 +148,7 @@ export default function CarMaintenanceForm({
                   letterSpacing: -0.3,
                 }}
               >
-                Add Maintenance
+                {isEditing ? "Edit Maintenance" : "Add Maintenance"}
               </Text>
             </View>
 
@@ -175,7 +159,9 @@ export default function CarMaintenanceForm({
                 color: colors.onSurfaceTertiary,
               }}
             >
-              Record a service or repair
+              {isEditing
+                ? "Update this service or repair"
+                : "Record a service or repair"}
             </Text>
           </View>
 
@@ -212,6 +198,10 @@ export default function CarMaintenanceForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="service"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Description */}
@@ -225,6 +215,10 @@ export default function CarMaintenanceForm({
           spacing={spacing}
           radius={radius}
           multiline
+          fieldName="description"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Price */}
@@ -239,6 +233,10 @@ export default function CarMaintenanceForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="price"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Odometer */}
@@ -253,6 +251,10 @@ export default function CarMaintenanceForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="odometer"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Provider */}
@@ -265,6 +267,10 @@ export default function CarMaintenanceForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="provider"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Next Service */}
@@ -279,6 +285,10 @@ export default function CarMaintenanceForm({
           colors={colors}
           spacing={spacing}
           radius={radius}
+          fieldName="nextService"
+          focusedField={focusedField}
+          onFocus={setFocusedField}
+          onBlur={() => setFocusedField(null)}
         />
 
         {/* Error */}
@@ -326,7 +336,7 @@ export default function CarMaintenanceForm({
               color: colors.surface,
             }}
           >
-            Save Maintenance
+            {isEditing ? "Save Changes" : "Save Maintenance"}
           </Text>
         </Pressable>
 
@@ -372,6 +382,10 @@ type FormFieldProps = {
   colors: any;
   spacing: any;
   radius: any;
+  fieldName: string;
+  focusedField: string | null;
+  onFocus: (field: string) => void;
+  onBlur: () => void;
 };
 
 function FormField({
@@ -385,9 +399,15 @@ function FormField({
   colors,
   spacing,
   radius,
+  fieldName,
+  focusedField,
+  onFocus,
+  onBlur,
 }: FormFieldProps) {
+  const isFocused = focusedField === fieldName;
+
   return (
-    <View style={{ marginBottom: spacing.lg }}>
+    <View style={{ marginBottom: spacing.xl }}>
       <Text
         style={{
           marginBottom: spacing.sm,
@@ -405,8 +425,10 @@ function FormField({
           borderRadius: radius.md,
           backgroundColor:
             colors.surfaceSecondary,
-          borderWidth: 1,
-          borderColor: colors.border,
+          borderWidth: isFocused ? 2 : 1,
+          borderColor: isFocused
+            ? colors.onSurface
+            : colors.border,
           flexDirection: "row",
           alignItems: multiline
             ? "flex-start"
@@ -429,12 +451,15 @@ function FormField({
           textAlignVertical={
             multiline ? "top" : "center"
           }
-          style={{
+          onFocus={() => onFocus(fieldName)}
+          onBlur={onBlur}
+          style={[{
             flex: 1,
             fontSize: 15,
             color: colors.onSurface,
             paddingVertical: 0,
-          }}
+            borderWidth: 0,
+          }, Platform.OS === "web" && { outlineStyle: "none" } as any]}
         />
 
         {suffix ? (

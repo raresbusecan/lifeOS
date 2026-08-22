@@ -86,6 +86,8 @@ export default function CarDashboard({
 
     const [maintenanceFormVisible, setMaintenanceFormVisible] =
         useState(false);
+    const [editingMaintenanceEntry, setEditingMaintenanceEntry] =
+        useState<CarMaintenanceEntry | null>(null);
 
 
     const [documentFormVisible, setDocumentFormVisible] =
@@ -190,6 +192,7 @@ export default function CarDashboard({
 
         if (action === "maintenance") {
             carActionModalRef.current?.dismiss();
+            setEditingMaintenanceEntry(null);
             setMaintenanceFormVisible(true);
             return;
         }
@@ -231,6 +234,7 @@ export default function CarDashboard({
     const handleMaintenanceSave = (entry: CarMaintenanceEntry) => {
         onMaintenanceSave?.(entry);
         setMaintenanceFormVisible(false);
+        setEditingMaintenanceEntry(null);
     };
 
 
@@ -265,8 +269,21 @@ export default function CarDashboard({
             return;
         }
 
+        if (item.type === "maintenance") {
+            const target = carData.maintenanceEntries.find(
+                (e) => e.id === item.id,
+            );
+
+            if (target) {
+                setEditingMaintenanceEntry(target);
+                setMaintenanceFormVisible(true);
+            }
+
+            return;
+        }
+
         /*
-         * Editarea pentru maintenance / document / expense va fi
+         * Editarea pentru document / expense va fi
          * adăugată ulterior, urmând același pattern.
          */
     };
@@ -318,9 +335,11 @@ export default function CarDashboard({
                 }}
             >
                 <CarMaintenanceForm
-                    onCancel={() =>
-                        setMaintenanceFormVisible(false)
-                    }
+                    entry={editingMaintenanceEntry ?? undefined}
+                    onCancel={() => {
+                        setMaintenanceFormVisible(false);
+                        setEditingMaintenanceEntry(null);
+                    }}
                     onSave={handleMaintenanceSave}
                 />
             </View>
@@ -819,8 +838,8 @@ function RecentRow({
     last?: boolean;
     onPress?: () => void;
 }) {
-    // For now only fuel entries have an edit flow wired up.
-    const isEditable = type === "fuel";
+    // For now only fuel and maintenance entries have an edit flow wired up.
+    const isEditable = type === "fuel" || type === "maintenance";
 
     return (
         <Pressable

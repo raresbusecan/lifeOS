@@ -604,13 +604,13 @@ function FormField({
           keyboardType={keyboardType}
           onFocus={() => onFocus(fieldName)}
           onBlur={onBlur}
-          style={{
+          style={[{
             flex: 1,
             fontSize: 15,
             color: colors.onSurface,
             paddingVertical: 0,
             borderWidth: 0,
-          }}
+          }, Platform.OS === "web" && { outlineStyle: "none" } as any]}
         />
 
         {suffix ? (
