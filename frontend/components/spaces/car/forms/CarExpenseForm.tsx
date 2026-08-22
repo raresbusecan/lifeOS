@@ -20,11 +20,10 @@ type CarExpenseFormProps = {
 
 const EXPENSE_CATEGORIES = [
   "Parking",
-  "Toll",
-  "Cleaning",
+  "Fines",
+  "Car Wash",
   "Accessories",
-  "Tax",
-  "Insurance",
+  "Tolls",
   "Other",
 ];
 
@@ -44,6 +43,13 @@ export default function CarExpenseForm({
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [error, setError] = useState("");
+
+  const handleCategorySelect = (item: string) => {
+    if (!title || title === category) {
+      setTitle(item);
+    }
+    setCategory(item);
+  };
 
   const handleSave = () => {
     setError("");
@@ -224,7 +230,7 @@ export default function CarExpenseForm({
             return (
               <Pressable
                 key={item}
-                onPress={() => setCategory(item)}
+                onPress={() => handleCategorySelect(item)}
                 style={{
                   paddingHorizontal: spacing.md,
                   minHeight: 40,

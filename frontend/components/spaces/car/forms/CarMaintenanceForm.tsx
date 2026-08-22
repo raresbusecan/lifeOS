@@ -21,6 +21,17 @@ type CarMaintenanceFormProps = {
   entry?: CarMaintenanceEntry;
 };
 
+const MAINTENANCE_TYPES = [
+  "Oil Change",
+  "Filters",
+  "Brakes",
+  "Tires",
+  "Battery",
+  "Fluids",
+  "Service",
+  "Repair",
+];
+
 export default function CarMaintenanceForm({
   onCancel,
   onSave,
@@ -186,6 +197,65 @@ export default function CarMaintenanceForm({
               color={colors.onSurfaceTertiary}
             />
           </Pressable>
+        </View>
+
+        {/* Quick Select */}
+
+        <Text
+          style={{
+            marginBottom: spacing.sm,
+            fontSize: 12,
+            fontWeight: "700",
+            color: colors.onSurfaceTertiary,
+          }}
+        >
+          Quick Select
+        </Text>
+
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: spacing.sm,
+            marginBottom: spacing.lg,
+          }}
+        >
+          {MAINTENANCE_TYPES.map((type) => {
+            const selected = service === type;
+
+            return (
+              <Pressable
+                key={type}
+                onPress={() => setService(type)}
+                style={{
+                  paddingHorizontal: spacing.md,
+                  minHeight: 40,
+                  borderRadius: radius.pill,
+                  backgroundColor: selected
+                    ? colors.onSurface
+                    : colors.surfaceSecondary,
+                  borderWidth: 1,
+                  borderColor: selected
+                    ? colors.onSurface
+                    : colors.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "700",
+                    color: selected
+                      ? colors.surface
+                      : colors.onSurface,
+                  }}
+                >
+                  {type}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Service */}

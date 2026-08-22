@@ -20,12 +20,10 @@ type CarDocumentFormProps = {
 
 const DOCUMENT_TYPES = [
   "RCA",
-  "ITP",
   "CASCO",
-  "Insurance",
-  "Registration",
-  "Service book",
-  "Other",
+  "ITP",
+  "Rovinieta",
+  "Tax",
 ];
 
 export default function CarDocumentForm({
@@ -45,6 +43,13 @@ export default function CarDocumentForm({
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [error, setError] = useState("");
+
+  const handleTypeSelect = (type: string) => {
+    if (!title || title === documentType) {
+      setTitle(type);
+    }
+    setDocumentType(type);
+  };
 
   const handleSave = () => {
     setError("");
@@ -238,7 +243,7 @@ export default function CarDocumentForm({
             return (
               <Pressable
                 key={type}
-                onPress={() => setDocumentType(type)}
+                onPress={() => handleTypeSelect(type)}
                 style={{
                   paddingHorizontal: spacing.md,
                   minHeight: 40,
