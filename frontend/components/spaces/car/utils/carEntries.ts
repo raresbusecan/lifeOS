@@ -29,16 +29,18 @@ export const buildCarRecentItems = ({
   return [
     ...fuelEntries.map((entry) => ({
       id: entry.id,
+      type: "fuel" as const,
       icon: "water-outline" as const,
       title: "Fuel",
       subtitle: `${formatCarDate(entry.date)} · ${formatCarNumber(
         entry.odometer,
       )} km`,
-      amount: `${formatCarNumber(entry.price)} RON`,
+      amount: `${formatCarNumber(entry.total_paid)} RON`,
     })),
 
     ...maintenanceEntries.map((entry) => ({
       id: entry.id,
+      type: "maintenance" as const,
       icon: "construct-outline" as const,
       title: entry.service,
       subtitle: `${formatCarDate(entry.date)} · ${formatCarNumber(
@@ -49,6 +51,7 @@ export const buildCarRecentItems = ({
 
     ...documentEntries.map((entry) => ({
       id: entry.id,
+      type: "document" as const,
       icon: "document-text-outline" as const,
       title: entry.title,
       subtitle: `${entry.documentType}${
@@ -64,6 +67,7 @@ export const buildCarRecentItems = ({
 
     ...expenseEntries.map((entry) => ({
       id: entry.id,
+      type: "expense" as const,
       icon: "receipt-outline" as const,
       title: entry.title,
       subtitle: `${entry.category}${

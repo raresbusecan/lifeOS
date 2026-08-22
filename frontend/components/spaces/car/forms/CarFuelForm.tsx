@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -14,12 +14,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/theme";
 
 import type { CarFuelEntry, CarVehicle } from "@/lib/spaces/car/car.types";
+import { getLatestFuelEntry, getPreviousFuelEntry } from "@/lib/spaces/car/utils/fuel.utils";
+import {
+  calculateSuggestedLiters,
+  calculatePricePerLiter,
+  calculateConsumptionPreview,
+} from "@/lib/spaces/car/calculations/fuel.calculations";
+import { validateFuelEntry } from "@/lib/spaces/car/validation/fuel.validation";
 
 type CarFuelFormProps = {
   vehicle: CarVehicle;
   fuelEntries: CarFuelEntry[];
   onCancel: () => void;
   onSave: (entry: CarFuelEntry) => void;
+  /** Pass an existing entry to edit it instead of creating a new one. */
+  entry?: CarFuelEntry;
 };
 
 export default function CarFuelForm({
@@ -27,21 +36,104 @@ export default function CarFuelForm({
   fuelEntries,
   onCancel,
   onSave,
+  entry,
 }: CarFuelFormProps) {
+  const isEditing = entry !== undefined;
+
   const { colors, spacing, radius } = useTheme();
 
-  const [liters, setLiters] = useState("");
-  const [price, setPrice] = useState("");
-  const [odometer, setOdometer] = useState("");
-  const [station, setStation] = useState("");
+  const [liters, setLiters] = useState(
+    entry ? String(entry.liters) : "",
+  );
+  // While editing, the liters value came from a real receipt — don't
+  // let the slider-based suggestion silently overwrite it.
+  const [litersTouched, setLitersTouched] = useState(isEditing);
+  const [price, setPrice] = useState(
+    entry ? String(entry.total_paid) : "",
+  );
+  const [odometer, setOdometer] = useState(
+    entry ? String(entry.odometer) : "",
+  );
+  const [station, setStation] = useState(entry?.station ?? "");
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-
-  const [levelBefore, setLevelBefore] = useState<number | null>(null);
-  const [levelAfter, setLevelAfter] = useState<number | null>(null);
+  const [levelBefore, setLevelBefore] = useState<number | null>(
+    entry?.level_before ?? null,
+  );
+  const [levelAfter, setLevelAfter] = useState<number | null>(
+    entry?.level_after ?? null,
+  );
 
   const [error, setError] = useState("");
+
+  const tankCapacity = vehicle.tank_capacity_liters ?? 0;
+
+  // Reference entry for distance/consumption — the entry that came
+  // right before this one. When editing, we exclude the entry itself
+  // from the pool (otherwise it could reference itself as "previous").
+  const previousEntry = useMemo(() => {
+    const otherEntries = entry
+      ? fuelEntries.filter((e) => e.id !== entry.id)
+      : fuelEntries;
+
+    return entry
+      ? getPreviousFuelEntry(otherEntries, entry.date)
+      : getLatestFuelEntry(otherEntries);
+  }, [fuelEntries, entry]);
+
+  // Litri sugerați din slidere (tank level before/after + capacitate).
+  const suggestedLiters = useMemo(() => {
+    if (levelBefore === null || levelAfter === null) return null;
+    return calculateSuggestedLiters(tankCapacity, levelBefore, levelAfter);
+  }, [tankCapacity, levelBefore, levelAfter]);
+
+  // Auto-completăm câmpul Liters cu valoarea sugerată, DAR doar cât timp
+  // userul nu l-a editat manual — pompa e sursa de adevăr, sliderul e ajutor.
+  useEffect(() => {
+    if (litersTouched) return;
+    if (suggestedLiters === null) return;
+
+    setLiters(String(suggestedLiters));
+  }, [suggestedLiters, litersTouched]);
+
+  const handleLitersChange = (value: string) => {
+    setLitersTouched(true);
+    setLiters(value);
+  };
+
+  const handleUseSuggestedLiters = () => {
+    if (suggestedLiters === null) return;
+    setLitersTouched(false);
+    setLiters(String(suggestedLiters));
+  };
+
+  // Preț/litru — calculat live, doar informativ.
+  const pricePerLiter = useMemo(() => {
+    const litersValue = Number(liters.replace(",", "."));
+    const priceValue = Number(price.replace(",", "."));
+
+    if (!liters || !price || !litersValue || !priceValue) return null;
+
+    return calculatePricePerLiter(litersValue, priceValue);
+  }, [liters, price]);
+
+  // Preview de consum, calculat live pe măsură ce userul completează
+  // odometrul și nivelul "before" — folosește ultimul entry salvat.
+  const consumptionPreview = useMemo(() => {
+    const odometerValue = Number(odometer.replace(",", "."));
+
+    if (!odometer || !odometerValue || levelBefore === null) {
+      return { distance: null, litersConsumed: null, consumption: null };
+    }
+
+    return calculateConsumptionPreview(
+      previousEntry,
+      odometerValue,
+      levelBefore,
+      tankCapacity,
+    );
+  }, [previousEntry, odometer, levelBefore, tankCapacity]);
 
   const handleSave = () => {
     setError("");
@@ -49,21 +141,6 @@ export default function CarFuelForm({
     const litersValue = Number(liters.replace(",", "."));
     const priceValue = Number(price.replace(",", "."));
     const odometerValue = Number(odometer.replace(",", "."));
-
-    if (!liters || !litersValue || litersValue <= 0) {
-      setError("Please enter a valid number of liters.");
-      return;
-    }
-
-    if (!price || !priceValue || priceValue <= 0) {
-      setError("Please enter a valid price.");
-      return;
-    }
-
-    if (!odometer || !odometerValue || odometerValue <= 0) {
-      setError("Please enter a valid odometer value.");
-      return;
-    }
 
     if (levelBefore === null || levelAfter === null) {
       Alert.alert(
@@ -73,9 +150,7 @@ export default function CarFuelForm({
       return;
     }
 
-    const entry: CarFuelEntry = {
-      id: `fuel-${Date.now()}`,
-      date: new Date().toISOString(),
+    const draftEntry: Omit<CarFuelEntry, "id" | "date"> = {
       liters: litersValue,
       total_paid: priceValue,
       odometer: odometerValue,
@@ -84,7 +159,20 @@ export default function CarFuelForm({
       level_after: levelAfter,
     };
 
-    onSave(entry);
+    const result = validateFuelEntry(draftEntry, previousEntry);
+
+    if (!result.valid) {
+      setError(result.error ?? "Please check the entered values.");
+      return;
+    }
+
+    const entryToSave: CarFuelEntry = {
+      id: entry?.id ?? `fuel-${Date.now()}`,
+      date: entry?.date ?? new Date().toISOString(),
+      ...draftEntry,
+    };
+
+    onSave(entryToSave);
   };
 
   return (
@@ -144,7 +232,7 @@ export default function CarFuelForm({
                   letterSpacing: -0.3,
                 }}
               >
-                Add Fuel
+                {isEditing ? "Edit Fuel" : "Add Fuel"}
               </Text>
             </View>
 
@@ -155,7 +243,9 @@ export default function CarFuelForm({
                 color: colors.onSurfaceTertiary,
               }}
             >
-              Record a fuel fill-up
+              {isEditing
+                ? "Update this fuel entry"
+                : "Record a fuel fill-up"}
             </Text>
           </View>
 
@@ -246,6 +336,19 @@ export default function CarFuelForm({
           >
             {levelAfter ?? 0}%
           </Text>
+
+          {tankCapacity <= 0 ? (
+            <Text
+              style={{
+                marginTop: 6,
+                fontSize: 12,
+                color: colors.onSurfaceTertiary,
+              }}
+            >
+              Set your car&apos;s tank capacity to get a suggested liters
+              value and consumption estimates.
+            </Text>
+          ) : null}
         </View>
 
         {/* Liters */}
@@ -253,7 +356,7 @@ export default function CarFuelForm({
         <FormField
           label="Liters"
           value={liters}
-          onChangeText={setLiters}
+          onChangeText={handleLitersChange}
           placeholder="e.g. 58"
           keyboardType="decimal-pad"
           colors={colors}
@@ -263,10 +366,22 @@ export default function CarFuelForm({
           focusedField={focusedField}
           onFocus={setFocusedField}
           onBlur={() => setFocusedField(null)}
+          hint={
+            suggestedLiters !== null
+              ? litersTouched
+                ? `Suggested from tank levels: ${suggestedLiters} L`
+                : `Auto-filled from tank levels · ${suggestedLiters} L`
+              : undefined
+          }
+          hintAction={
+            suggestedLiters !== null && litersTouched
+              ? {
+                  label: "Use suggested",
+                  onPress: handleUseSuggestedLiters,
+                }
+              : undefined
+          }
         />
-
-
-
 
         {/* Price */}
 
@@ -284,6 +399,11 @@ export default function CarFuelForm({
           focusedField={focusedField}
           onFocus={setFocusedField}
           onBlur={() => setFocusedField(null)}
+          hint={
+            pricePerLiter !== null
+              ? `${pricePerLiter} RON / L`
+              : undefined
+          }
         />
 
         {/* Odometer */}
@@ -302,6 +422,17 @@ export default function CarFuelForm({
           focusedField={focusedField}
           onFocus={setFocusedField}
           onBlur={() => setFocusedField(null)}
+        />
+
+        {/* Consumption preview */}
+
+        <ConsumptionPreviewCard
+          hasPreviousEntry={previousEntry !== null}
+          distance={consumptionPreview.distance}
+          consumption={consumptionPreview.consumption}
+          colors={colors}
+          spacing={spacing}
+          radius={radius}
         />
 
         {/* Station */}
@@ -364,7 +495,7 @@ export default function CarFuelForm({
               color: colors.surface,
             }}
           >
-            Save Fuel
+            {isEditing ? "Save Changes" : "Save Fuel"}
           </Text>
         </Pressable>
 
@@ -413,6 +544,10 @@ type FormFieldProps = {
   focusedField: string | null;
   onFocus: (field: string) => void;
   onBlur: () => void;
+  /** Small helper line under the field (e.g. suggested value, price/L). */
+  hint?: string;
+  /** Optional tappable action shown next to the hint (e.g. "Use suggested"). */
+  hintAction?: { label: string; onPress: () => void };
 };
 
 function FormField({
@@ -429,6 +564,8 @@ function FormField({
   focusedField,
   onFocus,
   onBlur,
+  hint,
+  hintAction,
 }: FormFieldProps) {
   const isFocused = focusedField === fieldName;
 
@@ -489,6 +626,132 @@ function FormField({
           </Text>
         ) : null}
       </View>
+
+      {hint ? (
+        <View
+          style={{
+            marginTop: 6,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.onSurfaceTertiary,
+              flexShrink: 1,
+            }}
+          >
+            {hint}
+          </Text>
+
+          {hintAction ? (
+            <Pressable onPress={hintAction.onPress} hitSlop={6}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: colors.onSurface,
+                }}
+              >
+                {hintAction.label}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+type ConsumptionPreviewCardProps = {
+  hasPreviousEntry: boolean;
+  distance: number | null;
+  consumption: number | null;
+  colors: any;
+  spacing: any;
+  radius: any;
+};
+
+function ConsumptionPreviewCard({
+  hasPreviousEntry,
+  distance,
+  consumption,
+  colors,
+  spacing,
+  radius,
+}: ConsumptionPreviewCardProps) {
+  return (
+    <View
+      style={{
+        marginBottom: spacing.xl,
+        padding: spacing.md,
+        borderRadius: radius.md,
+        backgroundColor: colors.surfaceSecondary,
+        flexDirection: "row",
+      }}
+    >
+      <PreviewStat
+        label="Distance"
+        value={distance !== null ? `${distance} km` : "—"}
+        colors={colors}
+      />
+
+      <View
+        style={{
+          width: 1,
+          backgroundColor: colors.border,
+          marginHorizontal: spacing.md,
+        }}
+      />
+
+      <PreviewStat
+        label="Est. consumption"
+        value={
+          consumption !== null
+            ? `${consumption} L/100km`
+            : hasPreviousEntry
+              ? "—"
+              : "First entry"
+        }
+        colors={colors}
+      />
+    </View>
+  );
+}
+
+function PreviewStat({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: any;
+}) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "700",
+          color: colors.onSurfaceTertiary,
+        }}
+      >
+        {label}
+      </Text>
+
+      <Text
+        style={{
+          marginTop: 3,
+          fontSize: 15,
+          fontWeight: "800",
+          color: colors.onSurface,
+        }}
+      >
+        {value}
+      </Text>
     </View>
   );
 }

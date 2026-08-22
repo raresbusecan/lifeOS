@@ -69,6 +69,57 @@ export function calculateEstimatedLitersConsumed(
     return Number(consumed.toFixed(2));
 }
 
+export type ConsumptionPreview = {
+    distance: number | null;
+    litersConsumed: number | null;
+    consumption: number | null;
+};
+
+/**
+ * Live preview used inside the Fuel form, before the entry actually
+ * exists (so we don't have an `id`/`date` yet — just draft values
+ * coming from the inputs/sliders).
+ *
+ * Same formula as calculateEstimatedConsumption, but works off raw
+ * draft values instead of a saved CarFuelEntry.
+ */
+export function calculateConsumptionPreview(
+    previousEntry: CarFuelEntry | null,
+    odometer: number,
+    levelBefore: number,
+    tankCapacityLiters: number,
+): ConsumptionPreview {
+    if (!previousEntry) {
+        return { distance: null, litersConsumed: null, consumption: null };
+    }
+
+    const distance = odometer - previousEntry.odometer;
+
+    if (!Number.isFinite(distance) || distance <= 0) {
+        return { distance: null, litersConsumed: null, consumption: null };
+    }
+
+    if (tankCapacityLiters <= 0) {
+        return { distance, litersConsumed: null, consumption: null };
+    }
+
+    const litersConsumed =
+        tankCapacityLiters *
+        ((previousEntry.level_after - levelBefore) / 100);
+
+    if (!Number.isFinite(litersConsumed) || litersConsumed <= 0) {
+        return { distance, litersConsumed: null, consumption: null };
+    }
+
+    const consumption = (litersConsumed / distance) * 100;
+
+    return {
+        distance,
+        litersConsumed: Number(litersConsumed.toFixed(2)),
+        consumption: Number(consumption.toFixed(2)),
+    };
+}
+
 export function calculateEstimatedConsumption(
     fuelEntries: CarFuelEntry[],
     currentEntry: CarFuelEntry,

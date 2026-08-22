@@ -42,10 +42,22 @@ export default function SpaceDetail() {
   const [loading, setLoading] = useState(true);
 
   const handleFuelSave = (entry: CarFuelEntry) => {
-    setCarData((current) => ({
-      ...current,
-      fuelEntries: [...current.fuelEntries, entry],
-    }));
+    setCarData((current) => {
+      const isExisting = current.fuelEntries.some(
+        (e) => e.id === entry.id,
+      );
+
+      const fuelEntries = isExisting
+        ? current.fuelEntries.map((e) =>
+            e.id === entry.id ? entry : e,
+          )
+        : [...current.fuelEntries, entry];
+
+      return {
+        ...current,
+        fuelEntries,
+      };
+    });
   };
 
   const handleMaintenanceSave = (entry: CarMaintenanceEntry) => {

@@ -7,6 +7,7 @@ export const initialCarData: CarData = {
     year: 2018,
     mileage: 124580,
     fuel_type: "diesel",
+    tank_capacity_liters: 57,
   },
 
   fuelEntries: [],

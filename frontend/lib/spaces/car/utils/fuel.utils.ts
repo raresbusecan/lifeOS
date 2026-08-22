@@ -20,11 +20,28 @@ export function getPreviousFuelEntry(
         new Date(entry.date).getTime() <
         new Date(currentDate).getTime(),
     )
-    .sort(
-      (a, b) =>
+    .sort((a, b) => {
+      const dateDiff =
         new Date(b.date).getTime() -
-        new Date(a.date).getTime(),
-    );
+        new Date(a.date).getTime();
+
+      // Tie-break by odometer in case two entries share a timestamp.
+      return dateDiff !== 0
+        ? dateDiff
+        : b.odometer - a.odometer;
+    });
 
   return previousEntries[0] ?? null;
+}
+
+/**
+ * Most recent saved fuel entry, used as the reference point while a
+ * NEW entry is still being drafted in the form (i.e. before it has
+ * an id/date of its own).
+ */
+export function getLatestFuelEntry(
+  fuelEntries: CarFuelEntry[],
+): CarFuelEntry | null {
+  const sorted = getSortedFuelEntries(fuelEntries);
+  return sorted[sorted.length - 1] ?? null;
 }

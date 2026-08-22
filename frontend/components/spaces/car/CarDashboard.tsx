@@ -80,6 +80,8 @@ export default function CarDashboard({
     const carActionModalRef = useRef<CarActionModalRef>(null);
 
     const [fuelFormVisible, setFuelFormVisible] = useState(false);
+    const [editingFuelEntry, setEditingFuelEntry] =
+        useState<CarFuelEntry | null>(null);
 
 
     const [maintenanceFormVisible, setMaintenanceFormVisible] =
@@ -181,6 +183,7 @@ export default function CarDashboard({
     const handleCarAction = (action: CarActionType) => {
         if (action === "fuel") {
             carActionModalRef.current?.dismiss();
+            setEditingFuelEntry(null);
             setFuelFormVisible(true);
             return;
         }
@@ -222,6 +225,7 @@ export default function CarDashboard({
     const handleFuelSave = (entry: CarFuelEntry) => {
         onFuelSave?.(entry);
         setFuelFormVisible(false);
+        setEditingFuelEntry(null);
     };
 
     const handleMaintenanceSave = (entry: CarMaintenanceEntry) => {
@@ -239,6 +243,32 @@ export default function CarDashboard({
     const handleExpenseSave = (entry: CarExpenseEntry) => {
         onExpenseSave?.(entry);
         setExpenseFormVisible(false);
+    };
+
+    /*
+     * =========================================================
+     * RECENT ITEM PRESS (EDIT)
+     * =========================================================
+     */
+
+    const handleRecentItemPress = (item: CarRecentItem) => {
+        if (item.type === "fuel") {
+            const target = carData.fuelEntries.find(
+                (e) => e.id === item.id,
+            );
+
+            if (target) {
+                setEditingFuelEntry(target);
+                setFuelFormVisible(true);
+            }
+
+            return;
+        }
+
+        /*
+         * Editarea pentru maintenance / document / expense va fi
+         * adăugată ulterior, urmând același pattern.
+         */
     };
 
     /*
@@ -268,7 +298,11 @@ export default function CarDashboard({
                 <CarFuelForm
                     vehicle={carData.vehicle}
                     fuelEntries={carData.fuelEntries}
-                    onCancel={() => setFuelFormVisible(false)}
+                    entry={editingFuelEntry ?? undefined}
+                    onCancel={() => {
+                        setFuelFormVisible(false);
+                        setEditingFuelEntry(null);
+                    }}
                     onSave={handleFuelSave}
                 />
             </View>
@@ -534,6 +568,7 @@ export default function CarDashboard({
                             colors={colors}
                             spacing={spacing}
                             last={index === recentItems.length - 1}
+                            onPress={() => handleRecentItemPress(item)}
                         />
                     ))}
                 </View>
@@ -769,6 +804,7 @@ function InfoRow({
    ============================================================ */
 
 function RecentRow({
+    type,
     icon,
     title,
     subtitle,
@@ -776,13 +812,20 @@ function RecentRow({
     colors,
     spacing,
     last = false,
+    onPress,
 }: CarRecentItem & {
     colors: any;
     spacing: any;
     last?: boolean;
+    onPress?: () => void;
 }) {
+    // For now only fuel entries have an edit flow wired up.
+    const isEditable = type === "fuel";
+
     return (
-        <View
+        <Pressable
+            onPress={isEditable ? onPress : undefined}
+            disabled={!isEditable}
             style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -834,7 +877,15 @@ function RecentRow({
                     {amount}
                 </Text>
             ) : null}
-        </View>
+
+            {isEditable ? (
+                <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.onSurfaceTertiary}
+                />
+            ) : null}
+        </Pressable>
     );
 }
 
@@ -893,4 +944,3 @@ function ActionButton({
 /* ============================================================
    HELPERS
    ============================================================ */
-
