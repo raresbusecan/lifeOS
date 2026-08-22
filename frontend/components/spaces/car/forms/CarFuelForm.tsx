@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,16 +42,16 @@ export default function CarFuelForm({
   const { colors, spacing, radius } = useTheme();
 
   const [liters, setLiters] = useState(
-    entry ? String(entry.liters) : "",
+    entry?.liters !== undefined ? String(entry.liters) : "",
   );
   // While editing, the liters value came from a real receipt — don't
   // let the slider-based suggestion silently overwrite it.
   const [litersTouched, setLitersTouched] = useState(isEditing);
   const [price, setPrice] = useState(
-    entry ? String(entry.total_paid) : "",
+    entry?.total_paid !== undefined ? String(entry.total_paid) : "",
   );
   const [odometer, setOdometer] = useState(
-    entry ? String(entry.odometer) : "",
+    entry?.odometer !== undefined ? String(entry.odometer) : "",
   );
   const [station, setStation] = useState(entry?.station ?? "");
 
@@ -68,6 +67,14 @@ export default function CarFuelForm({
   const [error, setError] = useState("");
 
   const tankCapacity = vehicle.tank_capacity_liters ?? 0;
+
+  const parseOptionalNumber = (raw: string): number | undefined => {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+
+    const value = Number(trimmed.replace(",", "."));
+    return Number.isFinite(value) ? value : undefined;
+  };
 
   // Reference entry for distance/consumption — the entry that came
   // right before this one. When editing, we exclude the entry itself
@@ -138,25 +145,13 @@ export default function CarFuelForm({
   const handleSave = () => {
     setError("");
 
-    const litersValue = Number(liters.replace(",", "."));
-    const priceValue = Number(price.replace(",", "."));
-    const odometerValue = Number(odometer.replace(",", "."));
-
-    if (levelBefore === null || levelAfter === null) {
-      Alert.alert(
-        "Missing tank level",
-        "Please select both tank levels before saving.",
-      );
-      return;
-    }
-
     const draftEntry: Omit<CarFuelEntry, "id" | "date"> = {
-      liters: litersValue,
-      total_paid: priceValue,
-      odometer: odometerValue,
+      liters: parseOptionalNumber(liters),
+      total_paid: parseOptionalNumber(price),
+      odometer: parseOptionalNumber(odometer),
       station: station.trim() || undefined,
-      level_before: levelBefore,
-      level_after: levelAfter,
+      level_before: levelBefore ?? undefined,
+      level_after: levelAfter ?? undefined,
     };
 
     const result = validateFuelEntry(draftEntry, previousEntry);
@@ -245,7 +240,7 @@ export default function CarFuelForm({
             >
               {isEditing
                 ? "Update this fuel entry"
-                : "Record a fuel fill-up"}
+                : "Record a fuel fill-up — fill in what matters to you"}
             </Text>
           </View>
 
@@ -281,7 +276,7 @@ export default function CarFuelForm({
               color: colors.onSurfaceTertiary,
             }}
           >
-            Tank level before
+            Tank level before <Text style={{ fontWeight: "400" }}>(optional)</Text>
           </Text>
           <Slider
             minimumValue={0}
@@ -314,7 +309,7 @@ export default function CarFuelForm({
               color: colors.onSurfaceTertiary,
             }}
           >
-            Tank level after
+            Tank level after <Text style={{ fontWeight: "400" }}>(optional)</Text>
           </Text>
           <Slider
             minimumValue={0}
@@ -357,7 +352,7 @@ export default function CarFuelForm({
           label="Liters"
           value={liters}
           onChangeText={handleLitersChange}
-          placeholder="e.g. 58"
+          placeholder="e.g. 58 (optional)"
           keyboardType="decimal-pad"
           colors={colors}
           spacing={spacing}
@@ -412,7 +407,7 @@ export default function CarFuelForm({
           label="Odometer"
           value={odometer}
           onChangeText={setOdometer}
-          placeholder="e.g. 124580"
+          placeholder="e.g. 124580 (optional)"
           keyboardType="number-pad"
           suffix="km"
           colors={colors}
@@ -422,6 +417,11 @@ export default function CarFuelForm({
           focusedField={focusedField}
           onFocus={setFocusedField}
           onBlur={() => setFocusedField(null)}
+          hint={
+            odometer.trim()
+              ? undefined
+              : "Skip this if you're only tracking spend"
+          }
         />
 
         {/* Consumption preview */}

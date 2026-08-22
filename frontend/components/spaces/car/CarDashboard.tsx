@@ -126,7 +126,7 @@ export default function CarDashboard({
         },
     ];
 
-    const nextItems: CarNextItem[] = getUpcomingItems(carData, currentOdometer);
+    const nextItems: CarNextItem[] = getUpcomingItems(carData, currentOdometer, 3);
 
     const recentItems = buildCarRecentItems({
         fuelEntries: carData.fuelEntries,

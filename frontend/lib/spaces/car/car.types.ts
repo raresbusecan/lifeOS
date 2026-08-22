@@ -12,11 +12,11 @@ export type CarVehicle = {
 export type CarFuelEntry = {
   id: string;
   date: string;
-  liters: number;
-  total_paid: number;
-  odometer: number;
-  level_before:number;
-  level_after:number;
+  liters?: number;
+  total_paid?: number;
+  odometer?: number;
+  level_before?: number;
+  level_after?: number;
   station?: string;
 };
 

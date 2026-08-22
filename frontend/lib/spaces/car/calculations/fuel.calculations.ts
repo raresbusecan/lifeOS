@@ -43,6 +43,13 @@ export function calculateDistance(
 ): number | null {
     if (!previousEntry) return null;
 
+    if (
+        previousEntry.odometer === undefined ||
+        currentEntry.odometer === undefined
+    ) {
+        return null;
+    }
+
     const distance =
         currentEntry.odometer - previousEntry.odometer;
 
@@ -57,6 +64,13 @@ export function calculateEstimatedLitersConsumed(
     tankCapacityLiters: number,
 ): number | null {
     if (!previousEntry || tankCapacityLiters <= 0) {
+        return null;
+    }
+
+    if (
+        previousEntry.level_after === undefined ||
+        currentEntry.level_before === undefined
+    ) {
         return null;
     }
 
@@ -89,7 +103,7 @@ export function calculateConsumptionPreview(
     levelBefore: number,
     tankCapacityLiters: number,
 ): ConsumptionPreview {
-    if (!previousEntry) {
+    if (!previousEntry || previousEntry.odometer === undefined) {
         return { distance: null, litersConsumed: null, consumption: null };
     }
 
@@ -99,7 +113,7 @@ export function calculateConsumptionPreview(
         return { distance: null, litersConsumed: null, consumption: null };
     }
 
-    if (tankCapacityLiters <= 0) {
+    if (tankCapacityLiters <= 0 || previousEntry.level_after === undefined) {
         return { distance, litersConsumed: null, consumption: null };
     }
 
@@ -125,12 +139,19 @@ export function calculateEstimatedConsumption(
     currentEntry: CarFuelEntry,
     tankCapacityLiters: number,
 ): number | null {
+    if (
+        currentEntry.odometer === undefined ||
+        currentEntry.level_before === undefined
+    ) {
+        return null;
+    }
+
     const previousEntry = getPreviousFuelEntry(
         fuelEntries,
         currentEntry.date,
     );
 
-    if (!previousEntry) {
+    if (!previousEntry || previousEntry.odometer === undefined) {
         return null;
     }
 
@@ -138,6 +159,10 @@ export function calculateEstimatedConsumption(
         currentEntry.odometer - previousEntry.odometer;
 
     if (distance <= 0) {
+        return null;
+    }
+
+    if (previousEntry.level_after === undefined) {
         return null;
     }
 

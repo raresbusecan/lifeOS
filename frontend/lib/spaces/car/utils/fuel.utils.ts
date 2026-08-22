@@ -28,7 +28,7 @@ export function getPreviousFuelEntry(
       // Tie-break by odometer in case two entries share a timestamp.
       return dateDiff !== 0
         ? dateDiff
-        : b.odometer - a.odometer;
+        : (b.odometer ?? 0) - (a.odometer ?? 0);
     });
 
   return previousEntries[0] ?? null;

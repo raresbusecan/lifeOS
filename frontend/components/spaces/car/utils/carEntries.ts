@@ -27,16 +27,30 @@ export const buildCarRecentItems = ({
   expenseEntries,
 }: CarRecentEntries): CarRecentItem[] => {
   return [
-    ...fuelEntries.map((entry) => ({
-      id: entry.id,
-      type: "fuel" as const,
-      icon: "water-outline" as const,
-      title: "Fuel",
-      subtitle: `${formatCarDate(entry.date)} · ${formatCarNumber(
-        entry.odometer,
-      )} km`,
-      amount: `${formatCarNumber(entry.total_paid)} RON`,
-    })),
+    ...fuelEntries.map((entry) => {
+      const subtitle =
+        entry.odometer !== undefined
+          ? `${formatCarDate(entry.date)} · ${formatCarNumber(
+              entry.odometer,
+            )} km`
+          : formatCarDate(entry.date);
+
+      const amount =
+        entry.total_paid !== undefined
+          ? `${formatCarNumber(entry.total_paid)} RON`
+          : entry.liters !== undefined
+            ? `${formatCarNumber(entry.liters)} L`
+            : undefined;
+
+      return {
+        id: entry.id,
+        type: "fuel" as const,
+        icon: "water-outline" as const,
+        title: "Fuel",
+        subtitle,
+        amount,
+      };
+    }),
 
     ...maintenanceEntries.map((entry) => ({
       id: entry.id,
