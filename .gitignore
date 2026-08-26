@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Agent runtime
+.agent/cache/
+.agent/logs/
+.agent/checkpoints/
+.agent/memory/semantic/
+.agent/context/runtime/
+
+# Local agent state
+.agent/runtime/
+.agent/tmp/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.idea/
+.vscode/*.local
