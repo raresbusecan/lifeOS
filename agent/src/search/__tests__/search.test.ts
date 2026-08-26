@@ -14,7 +14,7 @@ import {
 
 import {
   semanticSearch,
-} from "../search.js";
+} from "../semanticSearch.js";
 
 const repositoryRoot = await mkdtemp(
   resolve(tmpdir(), "lifeos-search-test-"),

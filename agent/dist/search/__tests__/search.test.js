@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm, } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { indexSemantic, } from "../../indexer/semanticIndex.js";
-import { semanticSearch, } from "../search.js";
+import { semanticSearch, } from "../semanticSearch.js";
 const repositoryRoot = await mkdtemp(resolve(tmpdir(), "lifeos-search-test-"));
 try {
     await mkdir(resolve(repositoryRoot, "src"), { recursive: true });
