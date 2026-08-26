@@ -65,35 +65,120 @@ export async function indexSemantic(
   let vectorsIndexed = 0;
 
   const dimensions = EMBEDDING_DIMENSIONS;
+  let processedChunks = 0;
 
-  let totalChunks = 0;
+  let batch: ChunkToProcess[] = [];
 
-  for (const file of files) {
-    const absolutePath = resolve(
-      repositoryRoot,
-      file.path,
-    );
+  const processBatch =
+    async (
+      items: ChunkToProcess[],
+    ): Promise<void> => {
+      if (items.length === 0) {
+        return;
+      }
 
-    const content = await readFile(
-      absolutePath,
-      "utf8",
-    );
-
-    const contentResult =
-      await getOrCreateContentCache(
-        repositoryRoot,
-        file.path,
-        content,
+      const uncached = items.filter(
+        (item) => item.embedding === null,
       );
 
-    totalChunks += contentResult.entry.chunks.length;
-  }
+      if (uncached.length > 0) {
+        console.log(
+          `Generating embeddings: ${uncached.length} chunks`,
+        );
 
-  console.log(
-    `Semantic chunks discovered: ${totalChunks}`,
-  );
+        const embeddings =
+          await client.embedMany(
+            uncached.map(
+              (item) => item.chunk.content,
+            ),
+          );
 
-  const chunksToProcess: ChunkToProcess[] = [];
+        if (
+          embeddings.length !== uncached.length
+        ) {
+          throw new Error(
+            `Ollama returned ${embeddings.length} embeddings for ${uncached.length} chunks`,
+          );
+        }
+
+        for (
+          let index = 0;
+          index < uncached.length;
+          index++
+        ) {
+          const item = uncached[index];
+          const embedding = embeddings[index];
+
+          if (!embedding) {
+            throw new Error(
+              `Missing embedding for ${item.chunk.chunkId}`,
+            );
+          }
+
+          if (
+            embedding.length !== dimensions
+          ) {
+            throw new Error(
+              `Unexpected embedding dimensions for ${item.chunk.chunkId}: ${embedding.length} !== ${dimensions}`,
+            );
+          }
+
+          item.embedding = embedding;
+
+          await saveEmbeddingCacheEntry(
+            repositoryRoot,
+            {
+              version: 1,
+              chunkId: item.chunk.chunkId,
+              contentHash:
+                item.chunk.contentHash,
+              model: client.getModel(),
+              dimensions: embedding.length,
+              embedding,
+              cachedAt:
+                new Date().toISOString(),
+            },
+          );
+
+          embeddingsCreated++;
+        }
+      }
+
+      for (const item of items) {
+        processedChunks++;
+
+        console.log(
+          `Embedding ${processedChunks}: ${item.chunk.chunkId}`,
+        );
+
+        if (!item.embedding) {
+          throw new Error(
+            `Missing embedding for ${item.chunk.chunkId}`,
+          );
+        }
+
+        await upsertVectorEntry(
+          repositoryRoot,
+          {
+            version: 1,
+            chunkId: item.chunk.chunkId,
+            path: item.chunk.path,
+            startLine: item.chunk.startLine,
+            endLine: item.chunk.endLine,
+            contentHash:
+              item.chunk.contentHash,
+            embedding: item.embedding,
+            model: client.getModel(),
+            dimensions:
+              item.embedding.length,
+            indexedAt:
+              new Date().toISOString(),
+          },
+        );
+
+        vectorsIndexed++;
+      }
+    };
 
   for (const file of files) {
     const absolutePath = resolve(
@@ -127,121 +212,24 @@ export async function indexSemantic(
 
       if (cached) {
         embeddingCacheHits++;
-
-        chunksToProcess.push({
-          chunk,
-          embedding: cached.embedding,
-        });
-      } else {
-        chunksToProcess.push({
-          chunk,
-          embedding: null,
-        });
       }
-    }
-  }
 
-  let processedChunks = 0;
-
-  for (
-    let batchStart = 0;
-    batchStart < chunksToProcess.length;
-    batchStart += EMBEDDING_BATCH_SIZE
-  ) {
-    const batch = chunksToProcess.slice(
-      batchStart,
-      batchStart + EMBEDDING_BATCH_SIZE,
-    );
-
-    const uncached = batch.filter(
-      (item) => item.embedding === null,
-    );
-
-    if (uncached.length > 0) {
-      console.log(
-        `Generating embeddings: ${uncached.length} chunks`,
-      );
-
-      const embeddings =
-        await client.embedMany(
-          uncached.map(
-            (item) => item.chunk.content,
-          ),
-        );
+      batch.push({
+        chunk,
+        embedding:
+          cached?.embedding ?? null,
+      });
 
       if (
-        embeddings.length !== uncached.length
+        batch.length === EMBEDDING_BATCH_SIZE
       ) {
-        throw new Error(
-          `Ollama returned ${embeddings.length} embeddings for ${uncached.length} chunks`,
-        );
+        await processBatch(batch);
+        batch = [];
       }
-
-      for (
-        let index = 0;
-        index < uncached.length;
-        index++
-      ) {
-        const item = uncached[index];
-        const embedding = embeddings[index];
-
-        if (embedding.length !== dimensions) {
-          throw new Error(
-            `Unexpected embedding dimensions for ${item.chunk.chunkId}: ${embedding.length} !== ${dimensions}`,
-          );
-        }
-
-        item.embedding = embedding;
-
-        await saveEmbeddingCacheEntry(
-          repositoryRoot,
-          {
-            version: 1,
-            chunkId: item.chunk.chunkId,
-            contentHash: item.chunk.contentHash,
-            model: client.getModel(),
-            dimensions: embedding.length,
-            embedding,
-            cachedAt: new Date().toISOString(),
-          },
-        );
-
-        embeddingsCreated++;
-      }
-    }
-
-    for (const item of batch) {
-      processedChunks++;
-
-      console.log(
-        `Embedding ${processedChunks}/${totalChunks}: ${item.chunk.chunkId}`,
-      );
-
-      if (!item.embedding) {
-        throw new Error(
-          `Missing embedding for ${item.chunk.chunkId}`,
-        );
-      }
-
-      await upsertVectorEntry(
-        repositoryRoot,
-        {
-          version: 1,
-          chunkId: item.chunk.chunkId,
-          path: item.chunk.path,
-          startLine: item.chunk.startLine,
-          endLine: item.chunk.endLine,
-          contentHash: item.chunk.contentHash,
-          embedding: item.embedding,
-          model: client.getModel(),
-          dimensions: item.embedding.length,
-          indexedAt: new Date().toISOString(),
-        },
-      );
-
-      vectorsIndexed++;
     }
   }
+
+  await processBatch(batch);
 
   return {
     files: files.length,

@@ -17,41 +17,13 @@ export async function indexSemantic(repositoryRoot, options = {}) {
     let embeddingsCreated = 0;
     let vectorsIndexed = 0;
     const dimensions = EMBEDDING_DIMENSIONS;
-    let totalChunks = 0;
-    for (const file of files) {
-        const absolutePath = resolve(repositoryRoot, file.path);
-        const content = await readFile(absolutePath, "utf8");
-        const contentResult = await getOrCreateContentCache(repositoryRoot, file.path, content);
-        totalChunks += contentResult.entry.chunks.length;
-    }
-    console.log(`Semantic chunks discovered: ${totalChunks}`);
-    const chunksToProcess = [];
-    for (const file of files) {
-        const absolutePath = resolve(repositoryRoot, file.path);
-        const content = await readFile(absolutePath, "utf8");
-        const contentResult = await getOrCreateContentCache(repositoryRoot, file.path, content);
-        for (const chunk of contentResult.entry.chunks) {
-            chunks++;
-            const cached = await getEmbeddingCacheEntry(repositoryRoot, chunk.chunkId, chunk.contentHash, client.getModel(), dimensions);
-            if (cached) {
-                embeddingCacheHits++;
-                chunksToProcess.push({
-                    chunk,
-                    embedding: cached.embedding,
-                });
-            }
-            else {
-                chunksToProcess.push({
-                    chunk,
-                    embedding: null,
-                });
-            }
-        }
-    }
     let processedChunks = 0;
-    for (let batchStart = 0; batchStart < chunksToProcess.length; batchStart += EMBEDDING_BATCH_SIZE) {
-        const batch = chunksToProcess.slice(batchStart, batchStart + EMBEDDING_BATCH_SIZE);
-        const uncached = batch.filter((item) => item.embedding === null);
+    let batch = [];
+    const processBatch = async (items) => {
+        if (items.length === 0) {
+            return;
+        }
+        const uncached = items.filter((item) => item.embedding === null);
         if (uncached.length > 0) {
             console.log(`Generating embeddings: ${uncached.length} chunks`);
             const embeddings = await client.embedMany(uncached.map((item) => item.chunk.content));
@@ -61,6 +33,9 @@ export async function indexSemantic(repositoryRoot, options = {}) {
             for (let index = 0; index < uncached.length; index++) {
                 const item = uncached[index];
                 const embedding = embeddings[index];
+                if (!embedding) {
+                    throw new Error(`Missing embedding for ${item.chunk.chunkId}`);
+                }
                 if (embedding.length !== dimensions) {
                     throw new Error(`Unexpected embedding dimensions for ${item.chunk.chunkId}: ${embedding.length} !== ${dimensions}`);
                 }
@@ -77,9 +52,9 @@ export async function indexSemantic(repositoryRoot, options = {}) {
                 embeddingsCreated++;
             }
         }
-        for (const item of batch) {
+        for (const item of items) {
             processedChunks++;
-            console.log(`Embedding ${processedChunks}/${totalChunks}: ${item.chunk.chunkId}`);
+            console.log(`Embedding ${processedChunks}: ${item.chunk.chunkId}`);
             if (!item.embedding) {
                 throw new Error(`Missing embedding for ${item.chunk.chunkId}`);
             }
@@ -97,7 +72,28 @@ export async function indexSemantic(repositoryRoot, options = {}) {
             });
             vectorsIndexed++;
         }
+    };
+    for (const file of files) {
+        const absolutePath = resolve(repositoryRoot, file.path);
+        const content = await readFile(absolutePath, "utf8");
+        const contentResult = await getOrCreateContentCache(repositoryRoot, file.path, content);
+        for (const chunk of contentResult.entry.chunks) {
+            chunks++;
+            const cached = await getEmbeddingCacheEntry(repositoryRoot, chunk.chunkId, chunk.contentHash, client.getModel(), dimensions);
+            if (cached) {
+                embeddingCacheHits++;
+            }
+            batch.push({
+                chunk,
+                embedding: cached?.embedding ?? null,
+            });
+            if (batch.length === EMBEDDING_BATCH_SIZE) {
+                await processBatch(batch);
+                batch = [];
+            }
+        }
     }
+    await processBatch(batch);
     return {
         files: files.length,
         chunks,
