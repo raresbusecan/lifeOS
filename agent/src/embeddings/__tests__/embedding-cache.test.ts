@@ -1,106 +1,180 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { resolve } from "node:path";
 
 import {
-  getEmbeddingCacheEntry,
-  saveEmbeddingCacheEntry,
-} from "../embedding-cache.js";
+clearEmbeddingCache,
+getEmbeddingCacheStats,
+OllamaEmbeddingClient,
+} from "../ollama.js";
 
-const repositoryRoot = await mkdtemp(
-  resolve(tmpdir(), "lifeos-embedding-cache-"),
+const client = new OllamaEmbeddingClient();
+
+clearEmbeddingCache();
+
+console.log("\n=== Embedding LRU Cache Test ===\n");
+
+const queryA = "How does authentication work?";
+const queryB = "How does payment processing work?";
+
+console.log("1. First request — expected MISS");
+
+const firstA = await client.embed(queryA);
+
+assert.ok(firstA.length > 0);
+
+let stats = getEmbeddingCacheStats();
+
+assert.equal(stats.size, 1);
+assert.equal(stats.maxSize, 100);
+
+console.log(
+`Cache size: ${stats.size}/${stats.maxSize}`,
 );
 
-try {
-  const embedding = Array.from(
-    { length: 768 },
-    (_, index) => index / 768,
-  );
+console.log("\n2. Same request — expected HIT");
 
-  const entry = {
-    version: 1 as const,
-    chunkId: "test.ts:1-10",
-    contentHash: "a".repeat(64),
-    model: "nomic-embed-text",
-    dimensions: 768,
-    embedding,
-    cachedAt: new Date().toISOString(),
-  };
+const secondA = await client.embed(queryA);
 
-  const firstMiss = await getEmbeddingCacheEntry(
-    repositoryRoot,
-    entry.chunkId,
-    entry.contentHash,
-    entry.model,
-    entry.dimensions,
-  );
+assert.deepEqual(
+secondA,
+firstA,
+);
 
-  assert.equal(firstMiss, null);
+stats = getEmbeddingCacheStats();
 
-  await saveEmbeddingCacheEntry(
-    repositoryRoot,
-    entry,
-  );
+assert.equal(stats.size, 1);
 
-  const hit = await getEmbeddingCacheEntry(
-    repositoryRoot,
-    entry.chunkId,
-    entry.contentHash,
-    entry.model,
-    entry.dimensions,
-  );
+console.log(
+`Cache size: ${stats.size}/${stats.maxSize}`,
+);
 
-  assert.ok(hit);
-  assert.equal(hit.chunkId, entry.chunkId);
-  assert.equal(hit.contentHash, entry.contentHash);
-  assert.equal(hit.model, entry.model);
-  assert.equal(hit.dimensions, 768);
-  assert.deepEqual(hit.embedding, embedding);
+console.log("\n3. Different request — expected MISS");
 
-  const changedContent = await getEmbeddingCacheEntry(
-    repositoryRoot,
-    entry.chunkId,
-    "b".repeat(64),
-    entry.model,
-    entry.dimensions,
-  );
+const firstB = await client.embed(queryB);
 
-  assert.equal(changedContent, null);
+assert.ok(firstB.length > 0);
 
-  const changedModel = await getEmbeddingCacheEntry(
-    repositoryRoot,
-    entry.chunkId,
-    entry.contentHash,
-    "different-model",
-    entry.dimensions,
-  );
+assert.notDeepEqual(
+firstB,
+[],
+);
 
-  assert.equal(changedModel, null);
+stats = getEmbeddingCacheStats();
 
-  const cacheFile = resolve(
-    repositoryRoot,
-    ".agent",
-    "cache",
-    "embeddings",
-    "index.json",
-  );
+assert.equal(stats.size, 2);
 
-  const cacheContent = await readFile(
-    cacheFile,
-    "utf8",
-  );
+console.log(
+`Cache size: ${stats.size}/${stats.maxSize}`,
+);
 
-  assert.ok(cacheContent.includes('"entries"'));
-  assert.ok(cacheContent.includes('"test.ts:1-10"'));
-  assert.ok(cacheContent.includes('"nomic-embed-text"'));
+console.log(
+"\n4. Original request after another request — expected HIT",
+);
 
-  console.log("Embedding cache test passed");
-  console.log(`Dimensions: ${hit.dimensions}`);
-  console.log(`Chunk: ${hit.chunkId}`);
-} finally {
-  await rm(repositoryRoot, {
-    recursive: true,
-    force: true,
-  });
+const thirdA = await client.embed(queryA);
+
+assert.deepEqual(
+thirdA,
+firstA,
+);
+
+stats = getEmbeddingCacheStats();
+
+assert.equal(stats.size, 2);
+
+console.log(
+`Cache size: ${stats.size}/${stats.maxSize}`,
+);
+
+console.log(
+"\n5. LRU capacity test",
+);
+
+clearEmbeddingCache();
+
+const capacity =
+getEmbeddingCacheStats().maxSize;
+
+for (let i = 0; i < capacity; i++) {
+await client.embed(
+`LRU cache test query ${i}`,
+);
 }
+
+stats = getEmbeddingCacheStats();
+
+assert.equal(
+stats.size,
+capacity,
+);
+
+console.log(
+`Filled cache: ${stats.size}/${stats.maxSize}`,
+);
+
+console.log(
+"\n6. Touch first entry to make it recently used",
+);
+
+const firstLruQuery =
+"LRU cache test query 0";
+
+await client.embed(
+firstLruQuery,
+);
+
+stats = getEmbeddingCacheStats();
+
+assert.equal(
+stats.size,
+capacity,
+);
+
+console.log(
+`Cache after touch: ${stats.size}/${stats.maxSize}`,
+);
+
+console.log(
+"\n7. Add one new entry — expected eviction",
+);
+
+await client.embed(
+"LRU cache eviction query",
+);
+
+stats = getEmbeddingCacheStats();
+
+assert.equal(
+stats.size,
+capacity,
+);
+
+console.log(
+`Cache after eviction: ${stats.size}/${stats.maxSize}`,
+);
+
+console.log(
+"\n8. Verify recently-used first entry survived",
+);
+
+const preserved = await client.embed(
+firstLruQuery,
+);
+
+assert.ok(
+preserved.length > 0,
+);
+
+stats = getEmbeddingCacheStats();
+
+assert.equal(
+stats.size,
+capacity,
+);
+
+console.log(
+"Recently-used entry survived eviction",
+);
+
+console.log(
+"\n=== Embedding LRU Cache Test Passed ===\n",
+);

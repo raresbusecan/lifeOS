@@ -36,6 +36,29 @@ export interface VectorSearchResult {
   embedding: number[];
 }
 
+function getIndexFile(
+  repositoryRoot: string,
+): string {
+  return resolve(
+    repositoryRoot,
+    ".agent",
+    "cache",
+    "vectors",
+    "index.json",
+  );
+}
+
+function getIndexDirectory(
+  repositoryRoot: string,
+): string {
+  return resolve(
+    repositoryRoot,
+    ".agent",
+    "cache",
+    "vectors",
+  );
+}
+
 async function loadIndex(
   indexFile: string,
   model: string,
@@ -58,7 +81,7 @@ async function loadIndex(
       return index;
     }
   } catch {
-    // Empty index.
+    // Empty or invalid index.
   }
 
   return {
@@ -68,6 +91,27 @@ async function loadIndex(
     updatedAt: new Date().toISOString(),
     entries: {},
   };
+}
+
+async function saveIndex(
+  repositoryRoot: string,
+  index: VectorIndexFile,
+): Promise<void> {
+  const directory =
+    getIndexDirectory(repositoryRoot);
+
+  await mkdir(directory, {
+    recursive: true,
+  });
+
+  index.updatedAt =
+    new Date().toISOString();
+
+  await writeFile(
+    getIndexFile(repositoryRoot),
+    JSON.stringify(index, null, 2) + "\n",
+    "utf8",
+  );
 }
 
 function cosineSimilarity(
@@ -93,13 +137,17 @@ function cosineSimilarity(
     magnitudeB += valueB * valueB;
   }
 
-  if (magnitudeA === 0 || magnitudeB === 0) {
+  if (
+    magnitudeA === 0 ||
+    magnitudeB === 0
+  ) {
     return 0;
   }
 
   return (
     dot /
-    (Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB))
+    (Math.sqrt(magnitudeA) *
+      Math.sqrt(magnitudeB))
   );
 }
 
@@ -107,35 +155,56 @@ export async function upsertVectorEntry(
   repositoryRoot: string,
   entry: VectorIndexEntry,
 ): Promise<void> {
-  const directory = resolve(
-    repositoryRoot,
-    ".agent",
-    "cache",
-    "vectors",
-  );
-
-  const indexFile = resolve(
-    directory,
-    "index.json",
-  );
-
   const index = await loadIndex(
-    indexFile,
+    getIndexFile(repositoryRoot),
     entry.model,
     entry.dimensions,
   );
 
   index.entries[entry.chunkId] = entry;
-  index.updatedAt = new Date().toISOString();
 
-  await mkdir(directory, {
-    recursive: true,
-  });
+  await saveIndex(
+    repositoryRoot,
+    index,
+  );
+}
 
-  await writeFile(
-    indexFile,
-    JSON.stringify(index, null, 2) + "\n",
-    "utf8",
+export async function upsertVectorEntries(
+  repositoryRoot: string,
+  entries: VectorIndexEntry[],
+): Promise<void> {
+  if (entries.length === 0) {
+    return;
+  }
+
+  const first = entries[0];
+
+  if (!first) {
+    return;
+  }
+
+  const index = await loadIndex(
+    getIndexFile(repositoryRoot),
+    first.model,
+    first.dimensions,
+  );
+
+  for (const entry of entries) {
+    if (
+      entry.model !== first.model ||
+      entry.dimensions !== first.dimensions
+    ) {
+      throw new Error(
+        "All vector entries in a batch must use the same model and dimensions",
+      );
+    }
+
+    index.entries[entry.chunkId] = entry;
+  }
+
+  await saveIndex(
+    repositoryRoot,
+    index,
   );
 }
 
@@ -145,16 +214,8 @@ export async function removeVectorEntry(
   model: string,
   dimensions: number,
 ): Promise<boolean> {
-  const indexFile = resolve(
-    repositoryRoot,
-    ".agent",
-    "cache",
-    "vectors",
-    "index.json",
-  );
-
   const index = await loadIndex(
-    indexFile,
+    getIndexFile(repositoryRoot),
     model,
     dimensions,
   );
@@ -164,12 +225,10 @@ export async function removeVectorEntry(
   }
 
   delete index.entries[chunkId];
-  index.updatedAt = new Date().toISOString();
 
-  await writeFile(
-    indexFile,
-    JSON.stringify(index, null, 2) + "\n",
-    "utf8",
+  await saveIndex(
+    repositoryRoot,
+    index,
   );
 
   return true;
@@ -185,32 +244,30 @@ export async function searchVectors(
     minScore?: number;
   },
 ): Promise<VectorSearchResult[]> {
-  const indexFile = resolve(
-    repositoryRoot,
-    ".agent",
-    "cache",
-    "vectors",
-    "index.json",
-  );
-
   const index = await loadIndex(
-    indexFile,
+    getIndexFile(repositoryRoot),
     options.model,
     options.dimensions,
   );
 
-  if (queryEmbedding.length !== options.dimensions) {
+  if (
+    queryEmbedding.length !==
+    options.dimensions
+  ) {
     throw new Error(
       `Query embedding dimensions do not match index dimensions: ${queryEmbedding.length} !== ${options.dimensions}`,
     );
   }
 
   const limit = options.limit ?? 10;
-  const minScore = options.minScore ?? -1;
+  const minScore =
+    options.minScore ?? -1;
 
   const results: VectorSearchResult[] = [];
 
-  for (const entry of Object.values(index.entries)) {
+  for (const entry of Object.values(
+    index.entries,
+  )) {
     const score = cosineSimilarity(
       queryEmbedding,
       entry.embedding,
@@ -231,7 +288,9 @@ export async function searchVectors(
     });
   }
 
-  results.sort((a, b) => b.score - a.score);
+  results.sort(
+    (a, b) => b.score - a.score,
+  );
 
   return results.slice(0, limit);
 }
@@ -245,24 +304,17 @@ export async function getVectorIndexStats(
   model: string;
   dimensions: number;
 }> {
-  const indexFile = resolve(
-    repositoryRoot,
-    ".agent",
-    "cache",
-    "vectors",
-    "index.json",
-  );
-
   const index = await loadIndex(
-    indexFile,
+    getIndexFile(repositoryRoot),
     model,
     dimensions,
   );
 
   return {
-    entries: Object.keys(index.entries).length,
+    entries: Object.keys(
+      index.entries,
+    ).length,
     model: index.model,
     dimensions: index.dimensions,
   };
 }
-
