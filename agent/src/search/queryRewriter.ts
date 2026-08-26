@@ -11,6 +11,43 @@ export interface QueryRewriteOptions {
   maxMessages?: number;
 }
 
+function needsQueryRewrite(
+  query: string,
+): boolean {
+  const normalized =
+    query
+      .trim()
+      .toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  const contextualPatterns = [
+    /\b(it|this|that|these|those)\b/,
+    /\bthere\b/,
+    /\bhere\b/,
+    /\bthe previous\b/,
+    /\bthe above\b/,
+    /\bthe same\b/,
+    /\bthat file\b/,
+    /\bthat implementation\b/,
+    /\bthat function\b/,
+    /\bthat code\b/,
+    /\bthat approach\b/,
+    /\bthe login\b/,
+    /\band how\b/,
+    /\band what\b/,
+    /\band where\b/,
+    /\band why\b/,
+  ];
+
+  return contextualPatterns.some(
+    (pattern) =>
+      pattern.test(normalized),
+  );
+}
+
 export async function rewriteQuery(
   query: string,
   conversation: ConversationMessage[],
@@ -23,6 +60,10 @@ export async function rewriteQuery(
   }
 
   if (conversation.length === 0) {
+    return query.trim();
+  }
+
+  if (!needsQueryRewrite(query)) {
     return query.trim();
   }
 
