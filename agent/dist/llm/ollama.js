@@ -11,9 +11,12 @@ export class OllamaChatClient {
                 process.env.OLLAMA_CHAT_MODEL ??
                 "qwen3-coder:30b";
     }
-    async chat(messages) {
+    async chat(messages, onToken) {
         if (messages.length === 0) {
             throw new Error("Cannot send an empty chat");
+        }
+        if (onToken) {
+            return this.chatStream(messages, onToken);
         }
         const response = await fetch(`${this.baseUrl}/api/chat`, {
             method: "POST",
@@ -34,6 +37,92 @@ export class OllamaChatClient {
         const content = result.message?.content;
         if (typeof content !== "string" ||
             content.length === 0) {
+            throw new Error("Ollama returned no chat response");
+        }
+        return content;
+    }
+    async chatStream(messages, onToken) {
+        if (messages.length === 0) {
+            throw new Error("Cannot send an empty chat");
+        }
+        const response = await fetch(`${this.baseUrl}/api/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/x-ndjson",
+            },
+            body: JSON.stringify({
+                model: this.model,
+                messages,
+                stream: true,
+            }),
+        });
+        if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`Ollama chat request failed: ${response.status} ${response.statusText}: ${body}`);
+        }
+        if (!response.body) {
+            throw new Error("Ollama returned an empty response body");
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let content = "";
+        let completed = false;
+        try {
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer =
+                    lines.pop() ?? "";
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) {
+                        continue;
+                    }
+                    const chunk = this.parseStreamChunk(trimmed);
+                    if (typeof chunk.message
+                        ?.content !== "string") {
+                        if (chunk.done) {
+                            completed = true;
+                        }
+                        continue;
+                    }
+                    const token = chunk.message.content;
+                    if (token.length > 0) {
+                        content += token;
+                        await onToken(token);
+                    }
+                    if (chunk.done) {
+                        completed = true;
+                    }
+                }
+            }
+            const remaining = buffer.trim();
+            if (remaining.length > 0) {
+                const chunk = this.parseStreamChunk(remaining);
+                const token = chunk.message?.content;
+                if (typeof token === "string" &&
+                    token.length > 0) {
+                    content += token;
+                    await onToken(token);
+                }
+                if (chunk.done) {
+                    completed = true;
+                }
+            }
+        }
+        finally {
+            reader.releaseLock();
+        }
+        if (!completed) {
+            throw new Error("Ollama chat stream ended before completion");
+        }
+        if (content.length === 0) {
             throw new Error("Ollama returned no chat response");
         }
         return content;
@@ -63,6 +152,16 @@ export class OllamaChatClient {
             content: result.message?.content ?? "",
             toolCalls: result.message?.tool_calls ?? [],
         };
+    }
+    parseStreamChunk(line) {
+        try {
+            return JSON.parse(line);
+        }
+        catch (error) {
+            throw new Error(`Failed to parse Ollama stream chunk: ${line}`, {
+                cause: error,
+            });
+        }
     }
     getModel() {
         return this.model;

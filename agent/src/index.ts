@@ -16,7 +16,14 @@ import {
   indexSemantic,
 } from "./indexer/semanticIndex.js";
 
-const repositoryRoot = resolve(process.cwd(), "..");
+import {
+  startAgentCli,
+} from "./cli.js";
+
+const repositoryRoot = resolve(
+  process.cwd(),
+  "..",
+);
 
 const stateFile = resolve(
   repositoryRoot,
@@ -36,57 +43,85 @@ const agentDirectory = resolve(
 console.log("");
 console.log("LifeOS Agent");
 console.log("────────────");
-console.log(`Repository: ${repositoryRoot}`);
+console.log(
+  `Repository: ${repositoryRoot}`,
+);
 console.log("Mode: READ_ONLY");
 console.log("Model: qwen3-coder:30b");
-console.log("Embeddings: nomic-embed-text");
+console.log(
+  "Embeddings: nomic-embed-text",
+);
 
 console.log(
   `Project state: ${
-    existsSync(stateFile) ? "OK" : "MISSING"
+    existsSync(stateFile)
+      ? "OK"
+      : "MISSING"
   }`,
 );
 
 console.log(
   `Instructions: ${
-    existsSync(instructionsFile) ? "OK" : "MISSING"
+    existsSync(instructionsFile)
+      ? "OK"
+      : "MISSING"
   }`,
 );
 
 console.log(
   `Agent workspace: ${
-    existsSync(agentDirectory) ? "OK" : "MISSING"
+    existsSync(agentDirectory)
+      ? "OK"
+      : "MISSING"
   }`,
 );
 
 console.log("");
 
-const fileIndex = await indexRepository(
-  repositoryRoot,
-);
+const fileIndex =
+  await indexRepository(
+    repositoryRoot,
+  );
 
 console.log(
   formatIndexResult(fileIndex),
 );
 
-const contentIndex = await indexContent(
-  repositoryRoot,
-);
+const contentIndex =
+  await indexContent(
+    repositoryRoot,
+  );
 
 console.log(
-  formatContentIndexResult(contentIndex),
+  formatContentIndexResult(
+    contentIndex,
+  ),
 );
 
 console.log("");
-console.log("Starting semantic index...");
-console.log("Ollama: http://localhost:11434");
-console.log("Model: nomic-embed-text");
+console.log(
+  "Starting semantic index...",
+);
+console.log(
+  "Ollama: http://localhost:11434",
+);
+console.log(
+  "Model: nomic-embed-text",
+);
 console.log("");
 
-const semanticIndex = await indexSemantic(
-  repositoryRoot,
-);
+const semanticIndex =
+  await indexSemantic(
+    repositoryRoot,
+  );
 
 console.log(
-  formatSemanticIndexResult(semanticIndex),
+  formatSemanticIndexResult(
+    semanticIndex,
+  ),
 );
+
+await startAgentCli({
+  repositoryRoot,
+  chatModel: "qwen3-coder:30b",
+});
