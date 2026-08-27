@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { createTaskId, createChildTaskId, } from "../taskId.js";
+assert.equal(createTaskId(1), "TASK-001");
+assert.equal(createTaskId(2), "TASK-002");
+assert.equal(createTaskId(42), "TASK-042");
+assert.equal(createTaskId(999), "TASK-999");
+assert.equal(createTaskId(1000), "TASK-1000");
+assert.equal(createChildTaskId("TASK-001", 1), "TASK-001-CHILD-001");
+assert.equal(createChildTaskId("TASK-001", 2), "TASK-001-CHILD-002");
+assert.equal(createChildTaskId("TASK-042", 15), "TASK-042-CHILD-015");
+assert.throws(() => createTaskId(0), /positive integer/);
+assert.throws(() => createTaskId(-1), /positive integer/);
+assert.throws(() => createTaskId(1.5), /positive integer/);
+assert.throws(() => createChildTaskId("", 1), /cannot be empty/);
+assert.throws(() => createChildTaskId("TASK-001", 0), /positive integer/);
+assert.throws(() => createChildTaskId("TASK-001", 1.5), /positive integer/);
+console.log("Task ID generator test passed");

@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+
+import {
+  MAX_TASK_ATTEMPTS,
+  canAttempt,
+  incrementAttempt,
+} from "../attempts.js";
+
+assert.equal(
+  MAX_TASK_ATTEMPTS,
+  3,
+);
+
+assert.equal(
+  canAttempt(0),
+  true,
+);
+
+assert.equal(
+  canAttempt(1),
+  true,
+);
+
+assert.equal(
+  canAttempt(2),
+  true,
+);
+
+assert.equal(
+  canAttempt(3),
+  false,
+);
+
+assert.equal(
+  canAttempt(-1),
+  false,
+);
+
+assert.equal(
+  canAttempt(1.5),
+  false,
+);
+
+assert.equal(
+  incrementAttempt(0),
+  1,
+);
+
+assert.equal(
+  incrementAttempt(1),
+  2,
+);
+
+assert.equal(
+  incrementAttempt(2),
+  3,
+);
+
+assert.throws(
+  () => incrementAttempt(3),
+  /maximum of 3 attempts/,
+);
+
+assert.throws(
+  () => incrementAttempt(-1),
+  /cannot be negative/,
+);
+
+assert.throws(
+  () => incrementAttempt(1.5),
+  /must be an integer/,
+);
+
+console.log(
+  "Task attempt policy test passed",
+);
