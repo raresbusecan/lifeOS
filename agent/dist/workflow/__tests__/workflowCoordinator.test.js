@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createTask, } from "../taskFactory.js";
 import { TaskStore, } from "../taskStore.js";
 import { WorkflowCoordinator, } from "../workflowCoordinator.js";
+import { createTaskContract, } from "../taskContract.js";
+
 const store = new TaskStore();
 const coordinator = new WorkflowCoordinator(store);
 const task = createTask({
@@ -23,11 +25,11 @@ const task = createTask({
     },
 });
 store.add(task);
-//
-// START CODING
-//
-// GIT_READY -> CODING -> IMPLEMENTED -> TESTING
-//
+coordinator.attachContract(createTaskContract({
+    taskId: task.id,
+    objective: task.description,
+    scope: task.scope,
+}));
 const codingResult = coordinator.startCoding(task.id);
 assert.equal(codingResult.task.id, task.id);
 assert.equal(codingResult.task.status, "TESTING");
@@ -42,11 +44,6 @@ assert.equal(codingHistory[1]?.from, "CODING");
 assert.equal(codingHistory[1]?.to, "IMPLEMENTED");
 assert.equal(codingHistory[2]?.from, "IMPLEMENTED");
 assert.equal(codingHistory[2]?.to, "TESTING");
-//
-// PASS
-//
-// TESTING -> TRIAGE -> REVIEW -> DONE
-//
 const passResult = coordinator.handleTestResult(task.id, {
     type: "PASS",
     relatedTaskId: task.id,
@@ -67,9 +64,6 @@ assert.equal(finalHistory[4]?.from, "TRIAGE");
 assert.equal(finalHistory[4]?.to, "REVIEW");
 assert.equal(finalHistory[5]?.from, "REVIEW");
 assert.equal(finalHistory[5]?.to, "DONE");
-//
-// MISSING TASK
-//
 assert.throws(() => coordinator.getTask("TASK-DOES-NOT-EXIST"), /Task TASK-DOES-NOT-EXIST does not exist/);
 assert.throws(() => coordinator.startCoding("TASK-DOES-NOT-EXIST"), /Task TASK-DOES-NOT-EXIST does not exist/);
 assert.throws(() => coordinator.handleTestResult("TASK-DOES-NOT-EXIST", {

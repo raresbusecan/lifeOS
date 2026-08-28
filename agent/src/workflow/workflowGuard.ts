@@ -80,6 +80,22 @@ export class WorkflowGuard {
       );
     }
 
+    const CONTRACT_REQUIRED_STATUSES: Set<TaskStatus> = new Set([
+      "CONTRACT_READY",
+      "IMPACT_APPROVED",
+      "GIT_READY",
+      "CODING",
+    ]);
+
+    if (
+      CONTRACT_REQUIRED_STATUSES.has(nextStatus) &&
+      !this.store.hasContract(task.id)
+    ) {
+      throw new Error(
+        `Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`,
+      );
+    }
+
     return this.store.transition(
       task.id,
       nextStatus,

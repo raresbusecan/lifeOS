@@ -21,6 +21,10 @@ import {
 WorkflowGuard,
 } from "./workflowGuard.js";
 
+import type {
+  TaskContract,
+} from "./taskContract.js";
+
 export class WorkflowCoordinator {
 private readonly guard: WorkflowGuard;
 
@@ -31,6 +35,12 @@ this.guard =
 new WorkflowGuard(
 this.store,
 );
+}
+
+attachContract(
+  contract: TaskContract,
+): void {
+  this.store.attachContract(contract);
 }
 
 getTask(

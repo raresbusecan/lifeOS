@@ -470,7 +470,7 @@ assert.equal(
 
 assert.equal(
   childHistory[1]?.reason,
-  "Triage passed; task moved to REVIEW.",
+  "Testing failed due to an out-of-scope issue; original task moved to REVIEW.",
 );
 
 assert.equal(
@@ -485,7 +485,7 @@ assert.equal(
 
 assert.equal(
   childHistory[2]?.reason,
-  "Review approved; task completed.",
+  "Review approved; original task completed.",
 );
 
 assert.ok(

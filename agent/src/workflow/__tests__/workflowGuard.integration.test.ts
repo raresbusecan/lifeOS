@@ -23,6 +23,10 @@ import {
   WorkflowGuard,
 } from "../workflowGuard.js";
 
+import {
+  createTaskContract,
+} from "../taskContract.js";
+
 const repositoryRoot = await mkdtemp(
   join(tmpdir(), "lifeos-workflow-guard-"),
 );
@@ -56,6 +60,13 @@ try {
   const task = createOfficialTask();
 
   store.add(task);
+  store.attachContract(
+    createTaskContract({
+      taskId: task.id,
+      objective: task.description,
+      scope: task.scope,
+    }),
+  );
 
   const guard = new WorkflowGuard(store);
 
@@ -104,6 +115,13 @@ try {
   const retryTask = createOfficialTask();
 
   retryStore.add(retryTask);
+  retryStore.attachContract(
+    createTaskContract({
+      taskId: retryTask.id,
+      objective: retryTask.description,
+      scope: retryTask.scope,
+    }),
+  );
 
   const retryGuard = new WorkflowGuard(retryStore);
 

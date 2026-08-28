@@ -12,6 +12,10 @@ import {
   WorkflowCoordinator,
 } from "../workflowCoordinator.js";
 
+import {
+  createTaskContract,
+} from "../taskContract.js";
+
 const store =
   new TaskStore();
 
@@ -43,6 +47,14 @@ const task =
 
 store.add(
   task,
+);
+
+coordinator.attachContract(
+  createTaskContract({
+    taskId: task.id,
+    objective: task.description,
+    scope: task.scope,
+  }),
 );
 
 //

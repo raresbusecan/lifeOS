@@ -15,6 +15,12 @@ const OFFICIAL_WORKFLOW_STATUSES = new Set([
     "BLOCKED",
     "CANCELLED",
 ]);
+const CONTRACT_REQUIRED_STATUSES = new Set([
+    "CONTRACT_READY",
+    "IMPACT_APPROVED",
+    "GIT_READY",
+    "CODING",
+]);
 export class WorkflowGuard {
     store;
     constructor(store) {
@@ -35,9 +41,11 @@ export class WorkflowGuard {
         if (!OFFICIAL_WORKFLOW_STATUSES.has(nextStatus)) {
             throw new Error(`Workflow Guard does not allow legacy status ${nextStatus}.`);
         }
-        if (nextStatus === "DONE" &&
-            task.status !== "REVIEW") {
+        if (nextStatus === "DONE" && task.status !== "REVIEW") {
             throw new Error("A task can only become DONE after REVIEW.");
+        }
+        if (CONTRACT_REQUIRED_STATUSES.has(nextStatus) && !this.store.hasContract(task.id)) {
+            throw new Error(`Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`);
         }
         return this.store.transition(task.id, nextStatus, reason);
     }

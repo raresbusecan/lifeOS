@@ -17,6 +17,10 @@ import {
   handleWorkflowTestResult,
 } from "../workflowRunner.js";
 
+import {
+  createTaskContract,
+} from "../taskContract.js";
+
 //
 // PASS FLOW
 //
@@ -55,6 +59,13 @@ const passTask =
 
 passStore.add(
   passTask,
+);
+passStore.attachContract(
+  createTaskContract({
+    taskId: passTask.id,
+    objective: passTask.description,
+    scope: passTask.scope,
+  }),
 );
 
 const passRun =
@@ -285,6 +296,13 @@ const reworkTask =
 reworkStore.add(
   reworkTask,
 );
+reworkStore.attachContract(
+  createTaskContract({
+    taskId: reworkTask.id,
+    objective: reworkTask.description,
+    scope: reworkTask.scope,
+  }),
+);
 
 const reworkRun =
   runCodingPhase(
@@ -418,6 +436,13 @@ const childParent =
 
 childStore.add(
   childParent,
+);
+childStore.attachContract(
+  createTaskContract({
+    taskId: childParent.id,
+    objective: childParent.description,
+    scope: childParent.scope,
+  }),
 );
 
 const childRun =
@@ -600,7 +625,7 @@ assert.throws(
       invalidTask,
       invalidGuard,
     ),
-  /Coding phase can only start for a task in GIT_READY status/,
+  /Coding phase can only start for a task in GIT_READY or FIX_REQUIRED status/,
 );
 
 //

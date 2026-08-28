@@ -1,9 +1,11 @@
 import { appendTransition, createTransition, } from "./history.js";
 import { moveTask, } from "./workflow.js";
 import { assertValidTask, } from "./taskValidator.js";
+import { assertValidTaskContract, } from "./taskContract.js";
 export class TaskStore {
     tasks = new Map();
     histories = new Map();
+    contracts = new Map();
     add(task) {
         assertValidTask(task);
         if (this.tasks.has(task.id)) {
@@ -44,13 +46,10 @@ export class TaskStore {
         if (!this.tasks.has(taskId)) {
             throw new Error(`Task ${taskId} does not exist.`);
         }
-        return [
-            ...(this.histories.get(taskId) ?? []),
-        ];
+        return [...(this.histories.get(taskId) ?? [])];
     }
     getChildren(parentTaskId) {
-        return Array.from(this.tasks.values()).filter((task) => task.parentTaskId ===
-            parentTaskId);
+        return Array.from(this.tasks.values()).filter((task) => task.parentTaskId === parentTaskId);
     }
     getNextChildSequence(parentTaskId) {
         const children = this.getChildren(parentTaskId);
@@ -65,8 +64,7 @@ export class TaskStore {
             }
             const sequenceText = child.id.slice(prefix.length);
             const sequence = Number(sequenceText);
-            if (Number.isInteger(sequence) &&
-                sequence > highestSequence) {
+            if (Number.isInteger(sequence) && sequence > highestSequence) {
                 highestSequence = sequence;
             }
         }
@@ -75,10 +73,40 @@ export class TaskStore {
     getAll() {
         return Array.from(this.tasks.values());
     }
+    attachContract(contract) {
+        assertValidTaskContract(contract);
+        if (!this.tasks.has(contract.taskId)) {
+            throw new Error(`Task ${contract.taskId} does not exist. Cannot attach contract.`);
+        }
+        this.contracts.set(contract.taskId, contract);
+    }
+    getContract(taskId) {
+        return this.contracts.get(taskId);
+    }
+    hasContract(taskId) {
+        return this.contracts.has(taskId);
+    }
     toSnapshot() {
         const histories = {};
         for (const [taskId, history] of this.histories) {
             histories[taskId] = [...history];
+        }
+        const contracts = {};
+        for (const [taskId, contract] of this.contracts) {
+            contracts[taskId] = {
+                ...contract,
+                scope: {
+                    ...contract.scope,
+                    files: [...contract.scope.files],
+                    components: [...contract.scope.components],
+                    behavior: [...contract.scope.behavior],
+                    exclusions: [...contract.scope.exclusions],
+                },
+                acceptanceCriteria: [...contract.acceptanceCriteria],
+                constraints: [...contract.constraints],
+                requiredTests: [...contract.requiredTests],
+                dependencies: [...contract.dependencies],
+            };
         }
         return {
             version: 1,
@@ -87,18 +115,13 @@ export class TaskStore {
                 scope: {
                     ...task.scope,
                     files: [...task.scope.files],
-                    components: [
-                        ...task.scope.components,
-                    ],
-                    behavior: [
-                        ...task.scope.behavior,
-                    ],
-                    exclusions: [
-                        ...task.scope.exclusions,
-                    ],
+                    components: [...task.scope.components],
+                    behavior: [...task.scope.behavior],
+                    exclusions: [...task.scope.exclusions],
                 },
             })),
             histories,
+            contracts,
         };
     }
     static fromSnapshot(snapshot) {
@@ -117,6 +140,13 @@ export class TaskStore {
             store.histories.set(task.id, history.map((transition) => ({
                 ...transition,
             })));
+        }
+        if (snapshot.contracts) {
+            for (const [taskId, contract] of Object.entries(snapshot.contracts)) {
+                if (store.has(taskId)) {
+                    store.attachContract(contract);
+                }
+            }
         }
         return store;
     }

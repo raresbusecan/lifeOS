@@ -20,10 +20,16 @@ import {
   assertValidTask,
 } from "./taskValidator.js";
 
+import {
+  type TaskContract,
+  assertValidTaskContract,
+} from "./taskContract.js";
+
 export interface TaskStoreSnapshot {
   version: 1;
   tasks: Task[];
   histories: Record<string, TaskTransition[]>;
+  contracts?: Record<string, TaskContract>;
 }
 
 export class TaskStore {
@@ -32,6 +38,9 @@ export class TaskStore {
 
   private readonly histories =
     new Map<string, TaskTransition[]>();
+
+  private readonly contracts =
+    new Map<string, TaskContract>();
 
   add(task: Task): void {
     assertValidTask(task);
@@ -220,6 +229,35 @@ export class TaskStore {
     );
   }
 
+  attachContract(
+    contract: TaskContract,
+  ): void {
+    assertValidTaskContract(contract);
+
+    if (!this.tasks.has(contract.taskId)) {
+      throw new Error(
+        `Task ${contract.taskId} does not exist. Cannot attach contract.`,
+      );
+    }
+
+    this.contracts.set(
+      contract.taskId,
+      contract,
+    );
+  }
+
+  getContract(
+    taskId: string,
+  ): TaskContract | undefined {
+    return this.contracts.get(taskId);
+  }
+
+  hasContract(
+    taskId: string,
+  ): boolean {
+    return this.contracts.has(taskId);
+  }
+
   toSnapshot(): TaskStoreSnapshot {
     const histories: Record<
       string,
@@ -228,6 +266,28 @@ export class TaskStore {
 
     for (const [taskId, history] of this.histories) {
       histories[taskId] = [...history];
+    }
+
+    const contracts: Record<
+      string,
+      TaskContract
+    > = {};
+
+    for (const [taskId, contract] of this.contracts) {
+      contracts[taskId] = {
+        ...contract,
+        scope: {
+          ...contract.scope,
+          files: [...contract.scope.files],
+          components: [...contract.scope.components],
+          behavior: [...contract.scope.behavior],
+          exclusions: [...contract.scope.exclusions],
+        },
+        acceptanceCriteria: [...contract.acceptanceCriteria],
+        constraints: [...contract.constraints],
+        requiredTests: [...contract.requiredTests],
+        dependencies: [...contract.dependencies],
+      };
     }
 
     return {
@@ -251,6 +311,7 @@ export class TaskStore {
         }),
       ),
       histories,
+      contracts,
     };
   }
 
@@ -284,6 +345,14 @@ export class TaskStore {
           ...transition,
         })),
       );
+    }
+
+    if (snapshot.contracts) {
+      for (const [taskId, contract] of Object.entries(snapshot.contracts)) {
+        if (store.has(taskId)) {
+          store.attachContract(contract);
+        }
+      }
     }
 
     return store;

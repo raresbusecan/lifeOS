@@ -6,6 +6,8 @@ import { createTask, } from "../taskFactory.js";
 import { loadTaskStore, saveTaskStore, } from "../taskPersistence.js";
 import { TaskStore, } from "../taskStore.js";
 import { WorkflowGuard, } from "../workflowGuard.js";
+import { createTaskContract, } from "../taskContract.js";
+
 const repositoryRoot = await mkdtemp(join(tmpdir(), "lifeos-workflow-guard-"));
 function createOfficialTask() {
     return createTask({
@@ -24,6 +26,11 @@ try {
     const store = new TaskStore();
     const task = createOfficialTask();
     store.add(task);
+    store.attachContract(createTaskContract({
+        taskId: task.id,
+        objective: task.description,
+        scope: task.scope,
+    }));
     const guard = new WorkflowGuard(store);
     advance(guard, task.id, [
         "ANALYSIS",
@@ -51,6 +58,11 @@ try {
     const retryStore = new TaskStore();
     const retryTask = createOfficialTask();
     retryStore.add(retryTask);
+    retryStore.attachContract(createTaskContract({
+        taskId: retryTask.id,
+        objective: retryTask.description,
+        scope: retryTask.scope,
+    }));
     const retryGuard = new WorkflowGuard(retryStore);
     advance(retryGuard, retryTask.id, [
         "ANALYSIS",
