@@ -55,6 +55,12 @@ assert.equal(passStore.get(passTask.id)?.status, "DONE");
 assert.equal(passStore.getHistory(passTask.id).length, 3);
 assert.equal(passStore.getHistory(passTask.id)[2]?.from, "TESTING");
 assert.equal(passStore.getHistory(passTask.id)[2]?.to, "DONE");
+assert.throws(() => handleWorkflowTestResult(passOutcome.task, {
+    type: "PASS",
+    relatedTaskId: passTask.id,
+    summary: "Authentication tests passed again.",
+    details: "This task is already DONE.",
+}, passStore), /Testing phase can only handle a task in TESTING status/);
 //
 // REWORK FLOW
 //
@@ -187,12 +193,18 @@ assert.throws(() => runCodingPhase(invalidTask, invalidStore), /Coding phase can
 //
 // INVALID TEST RESULT STATE
 //
-assert.throws(() => handleWorkflowTestResult(invalidTask, {
+// runCodingPhase() and handleTestResult() return new task
+// objects instead of mutating the ones they receive, so we
+// must reuse passOutcome.task (status "DONE") here rather
+// than passRun.task (still "TESTING") or invalidTask (also
+// "TESTING", which would incorrectly satisfy the guard).
+//
+assert.throws(() => handleWorkflowTestResult(passOutcome.task, {
     type: "PASS",
-    relatedTaskId: invalidTask.id,
-    summary: "Invalid result.",
-    details: "The task is not in a valid testing state.",
-}, invalidStore), /Testing phase can only handle a task in TESTING status/);
+    relatedTaskId: passTask.id,
+    summary: "Authentication tests passed again.",
+    details: "This task is already DONE.",
+}, passStore), /Testing phase can only handle a task in TESTING status/);
 //
 // MISSING TASK FOR RUNNER
 //
