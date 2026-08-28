@@ -9,6 +9,10 @@ import {
 } from "../taskStore.js";
 
 import {
+  WorkflowGuard,
+} from "../workflowGuard.js";
+
+import {
   runCodingPhase,
   handleWorkflowTestResult,
 } from "../workflowRunner.js";
@@ -16,19 +20,25 @@ import {
 //
 // PASS FLOW
 //
-// READY -> CODING -> TESTING -> DONE
+// GIT_READY -> CODING -> IMPLEMENTED -> TESTING
+// -> TRIAGE -> REVIEW -> DONE
 //
 
 const passStore =
   new TaskStore();
+
+const passGuard =
+  new WorkflowGuard(
+    passStore,
+  );
 
 const passTask =
   createTask({
     id: "TASK-RUNNER-PASS",
     title: "Workflow runner PASS test",
     description:
-      "Verify READY to CODING to TESTING to DONE.",
-    status: "READY",
+      "Verify GIT_READY to CODING to IMPLEMENTED to TESTING to TRIAGE to REVIEW to DONE.",
+    status: "GIT_READY",
     scope: {
       files: [
         "src/auth/login.ts",
@@ -50,7 +60,7 @@ passStore.add(
 const passRun =
   runCodingPhase(
     passTask,
-    passStore,
+    passGuard,
   );
 
 assert.equal(
@@ -89,12 +99,12 @@ const passHistory =
 
 assert.equal(
   passHistory.length,
-  2,
+  3,
 );
 
 assert.equal(
   passHistory[0]?.from,
-  "READY",
+  "GIT_READY",
 );
 
 assert.equal(
@@ -114,11 +124,26 @@ assert.equal(
 
 assert.equal(
   passHistory[1]?.to,
-  "TESTING",
+  "IMPLEMENTED",
 );
 
 assert.equal(
   passHistory[1]?.reason,
+  "Coding phase completed.",
+);
+
+assert.equal(
+  passHistory[2]?.from,
+  "IMPLEMENTED",
+);
+
+assert.equal(
+  passHistory[2]?.to,
+  "TESTING",
+);
+
+assert.equal(
+  passHistory[2]?.reason,
   "Task moved to TESTING.",
 );
 
@@ -134,6 +159,7 @@ const passOutcome =
       details:
         "All authentication behavior passed testing.",
     },
+    passGuard,
     passStore,
   );
 
@@ -163,20 +189,41 @@ assert.equal(
   passStore.getHistory(
     passTask.id,
   ).length,
-  3,
+  6,
 );
 
-assert.equal(
+const passFinalHistory =
   passStore.getHistory(
     passTask.id,
-  )[2]?.from,
+  );
+
+assert.equal(
+  passFinalHistory[3]?.from,
   "TESTING",
 );
 
 assert.equal(
-  passStore.getHistory(
-    passTask.id,
-  )[2]?.to,
+  passFinalHistory[3]?.to,
+  "TRIAGE",
+);
+
+assert.equal(
+  passFinalHistory[4]?.from,
+  "TRIAGE",
+);
+
+assert.equal(
+  passFinalHistory[4]?.to,
+  "REVIEW",
+);
+
+assert.equal(
+  passFinalHistory[5]?.from,
+  "REVIEW",
+);
+
+assert.equal(
+  passFinalHistory[5]?.to,
   "DONE",
 );
 
@@ -193,6 +240,7 @@ assert.throws(
         details:
           "This task is already DONE.",
       },
+      passGuard,
       passStore,
     ),
   /Testing phase can only handle a task in TESTING status/,
@@ -201,19 +249,25 @@ assert.throws(
 //
 // REWORK FLOW
 //
-// READY -> CODING -> TESTING -> REWORK
+// GIT_READY -> CODING -> IMPLEMENTED -> TESTING
+// -> TRIAGE -> FIX_REQUIRED
 //
 
 const reworkStore =
   new TaskStore();
+
+const reworkGuard =
+  new WorkflowGuard(
+    reworkStore,
+  );
 
 const reworkTask =
   createTask({
     id: "TASK-RUNNER-REWORK",
     title: "Workflow runner REWORK test",
     description:
-      "Verify in-scope testing failure creates rework.",
-    status: "READY",
+      "Verify in-scope testing failure creates a fix-required state.",
+    status: "GIT_READY",
     scope: {
       files: [
         "src/auth/login.ts",
@@ -235,7 +289,7 @@ reworkStore.add(
 const reworkRun =
   runCodingPhase(
     reworkTask,
-    reworkStore,
+    reworkGuard,
   );
 
 assert.equal(
@@ -265,6 +319,7 @@ const reworkOutcome =
         "authentication",
       ],
     },
+    reworkGuard,
     reworkStore,
   );
 
@@ -275,7 +330,7 @@ assert.equal(
 
 assert.equal(
   reworkOutcome.task.status,
-  "REWORK",
+  "FIX_REQUIRED",
 );
 
 assert.equal(
@@ -292,7 +347,7 @@ assert.equal(
   reworkStore.get(
     reworkTask.id,
   )?.status,
-  "REWORK",
+  "FIX_REQUIRED",
 );
 
 const reworkHistory =
@@ -302,33 +357,43 @@ const reworkHistory =
 
 assert.equal(
   reworkHistory.length,
-  3,
+  5,
 );
 
 assert.equal(
-  reworkHistory[2]?.from,
+  reworkHistory[3]?.from,
   "TESTING",
 );
 
 assert.equal(
-  reworkHistory[2]?.to,
-  "REWORK",
+  reworkHistory[3]?.to,
+  "TRIAGE",
 );
 
 assert.equal(
-  reworkHistory[2]?.reason,
-  "Testing failed due to an in-scope issue.",
+  reworkHistory[4]?.from,
+  "TRIAGE",
+);
+
+assert.equal(
+  reworkHistory[4]?.to,
+  "FIX_REQUIRED",
 );
 
 //
 // NEW TASK FLOW
 //
-// READY -> CODING -> TESTING
-// -> DONE + CHILD
+// GIT_READY -> CODING -> IMPLEMENTED -> TESTING
+// -> TRIAGE -> REVIEW -> DONE + CHILD
 //
 
 const childStore =
   new TaskStore();
+
+const childGuard =
+  new WorkflowGuard(
+    childStore,
+  );
 
 const childParent =
   createTask({
@@ -336,7 +401,7 @@ const childParent =
     title: "Workflow runner NEW_TASK test",
     description:
       "Verify out-of-scope testing finding creates child task.",
-    status: "READY",
+    status: "GIT_READY",
     scope: {
       files: [
         "src/auth/login.ts",
@@ -358,7 +423,7 @@ childStore.add(
 const childRun =
   runCodingPhase(
     childParent,
-    childStore,
+    childGuard,
   );
 
 assert.equal(
@@ -388,6 +453,7 @@ const childOutcome =
         "database",
       ],
     },
+    childGuard,
     childStore,
   );
 
@@ -470,22 +536,37 @@ const childHistory =
 
 assert.equal(
   childHistory.length,
-  3,
+  6,
 );
 
 assert.equal(
-  childHistory[2]?.from,
+  childHistory[3]?.from,
   "TESTING",
 );
 
 assert.equal(
-  childHistory[2]?.to,
-  "DONE",
+  childHistory[3]?.to,
+  "TRIAGE",
 );
 
 assert.equal(
-  childHistory[2]?.reason,
-  "Testing failed due to an out-of-scope issue; original task completed.",
+  childHistory[4]?.from,
+  "TRIAGE",
+);
+
+assert.equal(
+  childHistory[4]?.to,
+  "REVIEW",
+);
+
+assert.equal(
+  childHistory[5]?.from,
+  "REVIEW",
+);
+
+assert.equal(
+  childHistory[5]?.to,
+  "DONE",
 );
 
 //
@@ -495,12 +576,17 @@ assert.equal(
 const invalidStore =
   new TaskStore();
 
+const invalidGuard =
+  new WorkflowGuard(
+    invalidStore,
+  );
+
 const invalidTask =
   createTask({
     id: "TASK-RUNNER-INVALID",
     title: "Invalid runner test",
     description:
-      "Verify coding phase requires READY.",
+      "Verify coding phase requires GIT_READY.",
     status: "TESTING",
   });
 
@@ -512,19 +598,13 @@ assert.throws(
   () =>
     runCodingPhase(
       invalidTask,
-      invalidStore,
+      invalidGuard,
     ),
-  /Coding phase can only start for a task in READY status/,
+  /Coding phase can only start for a task in GIT_READY status/,
 );
 
 //
 // INVALID TEST RESULT STATE
-//
-// runCodingPhase() and handleTestResult() return new task
-// objects instead of mutating the ones they receive, so we
-// must reuse passOutcome.task (status "DONE") here rather
-// than passRun.task (still "TESTING") or invalidTask (also
-// "TESTING", which would incorrectly satisfy the guard).
 //
 
 assert.throws(
@@ -540,6 +620,7 @@ assert.throws(
         details:
           "This task is already DONE.",
       },
+      passGuard,
       passStore,
     ),
   /Testing phase can only handle a task in TESTING status/,
@@ -552,20 +633,25 @@ assert.throws(
 const missingStore =
   new TaskStore();
 
+const missingGuard =
+  new WorkflowGuard(
+    missingStore,
+  );
+
 const missingTask =
   createTask({
     id: "TASK-RUNNER-MISSING",
     title: "Missing task",
     description:
       "Task used to verify runner behavior.",
-    status: "READY",
+    status: "GIT_READY",
   });
 
 assert.throws(
   () =>
     runCodingPhase(
       missingTask,
-      missingStore,
+      missingGuard,
     ),
   /Task TASK-RUNNER-MISSING does not exist/,
 );

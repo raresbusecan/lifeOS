@@ -17,10 +17,21 @@ import {
   TaskStore,
 } from "./taskStore.js";
 
+import {
+  WorkflowGuard,
+} from "./workflowGuard.js";
+
 export class WorkflowCoordinator {
+  private readonly guard: WorkflowGuard;
+
   constructor(
     private readonly store: TaskStore,
-  ) {}
+  ) {
+    this.guard =
+      new WorkflowGuard(
+        this.store,
+      );
+  }
 
   getTask(
     taskId: string,
@@ -45,7 +56,7 @@ export class WorkflowCoordinator {
 
     return runCodingPhase(
       task,
-      this.store,
+      this.guard,
     );
   }
 
@@ -59,6 +70,7 @@ export class WorkflowCoordinator {
     return handleWorkflowTestResult(
       task,
       result,
+      this.guard,
       this.store,
     );
   }

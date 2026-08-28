@@ -12,6 +12,10 @@ import {
 } from "./testingHandler.js";
 
 import {
+  WorkflowGuard,
+} from "./workflowGuard.js";
+
+import {
   TaskStore,
 } from "./taskStore.js";
 
@@ -26,24 +30,31 @@ export interface WorkflowTestingResult {
 
 export function runCodingPhase(
   task: Task,
-  store: TaskStore,
+  guard: WorkflowGuard,
 ): WorkflowRunResult {
-  if (task.status !== "READY") {
+  if (task.status !== "GIT_READY") {
     throw new Error(
-      `Coding phase can only start for a task in READY status. Current status: ${task.status}.`,
+      `Coding phase can only start for a task in GIT_READY status. Current status: ${task.status}.`,
     );
   }
 
   const codingTask =
-    store.transition(
+    guard.transition(
       task.id,
       "CODING",
       "Task moved to CODING.",
     );
 
-  const testingTask =
-    store.transition(
+  const implementedTask =
+    guard.transition(
       codingTask.id,
+      "IMPLEMENTED",
+      "Coding phase completed.",
+    );
+
+  const testingTask =
+    guard.transition(
+      implementedTask.id,
       "TESTING",
       "Task moved to TESTING.",
     );
@@ -53,9 +64,11 @@ export function runCodingPhase(
   };
 }
 
+
 export function handleWorkflowTestResult(
   task: Task,
   result: TestResult,
+  guard: WorkflowGuard,
   store: TaskStore,
 ): WorkflowTestingResult {
   if (task.status !== "TESTING") {
@@ -68,6 +81,7 @@ export function handleWorkflowTestResult(
     handleTestResult(
       task,
       result,
+      guard,
       store,
     );
 

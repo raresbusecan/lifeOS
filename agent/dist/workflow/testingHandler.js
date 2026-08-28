@@ -1,13 +1,15 @@
 import { validateTestResult, } from "./testing.js";
 import { classifyTestResultScope, } from "./scopeClassifier.js";
 import { createChildTask, } from "./taskFactory.js";
-export function handleTestResult(task, result, store) {
+export function handleTestResult(task, result, guard, store) {
     validateTestResult(task, result);
     if (task.status !== "TESTING") {
         throw new Error(`Testing result can only be handled for a task in TESTING status. Current status: ${task.status}.`);
     }
     if (result.type === "PASS") {
-        const completedTask = store.transition(task.id, "DONE", "Testing passed.");
+        const triageTask = guard.transition(task.id, "TRIAGE", "Testing passed; task moved to TRIAGE.");
+        const reviewTask = guard.transition(triageTask.id, "REVIEW", "Triage passed; task moved to REVIEW.");
+        const completedTask = guard.transition(reviewTask.id, "DONE", "Review approved; task completed.");
         return {
             task: completedTask,
             resultType: "PASS",
@@ -18,7 +20,8 @@ export function handleTestResult(task, result, store) {
     const scope = classifyTestResultScope(task, result);
     if (scope.classification ===
         "IN_SCOPE") {
-        const reworkTask = store.transition(task.id, "REWORK", "Testing failed due to an in-scope issue.");
+        const triageTask = guard.transition(task.id, "TRIAGE", "Testing failed; task moved to TRIAGE.");
+        const reworkTask = guard.transition(triageTask.id, "FIX_REQUIRED", "Triage classified the failure as related to the task.");
         return {
             task: reworkTask,
             resultType: "REWORK",
@@ -26,7 +29,9 @@ export function handleTestResult(task, result, store) {
             newTask: null,
         };
     }
-    const completedTask = store.transition(task.id, "DONE", "Testing failed due to an out-of-scope issue; original task completed.");
+    const triageTask = guard.transition(task.id, "TRIAGE", "Testing failed; task moved to TRIAGE.");
+    const reviewTask = guard.transition(triageTask.id, "REVIEW", "Triage classified the failure as unrelated to the task.");
+    const completedTask = guard.transition(reviewTask.id, "DONE", "Original task completed; unrelated issue tracked separately.");
     const sequence = store.getNextChildSequence(task.id);
     const newTask = createChildTask(completedTask, {
         title: result.summary,

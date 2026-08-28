@@ -1,8 +1,12 @@
 import { runCodingPhase, handleWorkflowTestResult, } from "./workflowRunner.js";
+import { WorkflowGuard, } from "./workflowGuard.js";
 export class WorkflowCoordinator {
     store;
+    guard;
     constructor(store) {
         this.store = store;
+        this.guard =
+            new WorkflowGuard(this.store);
     }
     getTask(taskId) {
         const task = this.store.get(taskId);
@@ -13,10 +17,10 @@ export class WorkflowCoordinator {
     }
     startCoding(taskId) {
         const task = this.getTask(taskId);
-        return runCodingPhase(task, this.store);
+        return runCodingPhase(task, this.guard);
     }
     handleTestResult(taskId, result) {
         const task = this.getTask(taskId);
-        return handleWorkflowTestResult(task, result, this.store);
+        return handleWorkflowTestResult(task, result, this.guard, this.store);
     }
 }

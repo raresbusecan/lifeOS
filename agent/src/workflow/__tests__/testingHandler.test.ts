@@ -9,11 +9,26 @@ import {
 } from "../taskStore.js";
 
 import {
+  WorkflowGuard,
+} from "../workflowGuard.js";
+
+import {
   handleTestResult,
 } from "../testingHandler.js";
 
+//
+// PASS FLOW
+//
+// TESTING -> TRIAGE -> REVIEW -> DONE
+//
+
 const store =
   new TaskStore();
+
+const guard =
+  new WorkflowGuard(
+    store,
+  );
 
 const task =
   createTask({
@@ -51,6 +66,7 @@ const outcome =
   handleTestResult(
     task,
     passResult,
+    guard,
     store,
   );
 
@@ -78,7 +94,7 @@ const history =
 
 assert.equal(
   history.length,
-  1,
+  3,
 );
 
 assert.equal(
@@ -88,24 +104,73 @@ assert.equal(
 
 assert.equal(
   history[0]?.to,
-  "DONE",
+  "TRIAGE",
 );
 
 assert.equal(
   history[0]?.reason,
-  "Testing passed.",
+  "Testing passed; task moved to TRIAGE.",
+);
+
+assert.equal(
+  history[1]?.from,
+  "TRIAGE",
+);
+
+assert.equal(
+  history[1]?.to,
+  "REVIEW",
+);
+
+assert.equal(
+  history[1]?.reason,
+  "Triage passed; task moved to REVIEW.",
+);
+
+assert.equal(
+  history[2]?.from,
+  "REVIEW",
+);
+
+assert.equal(
+  history[2]?.to,
+  "DONE",
+);
+
+assert.equal(
+  history[2]?.reason,
+  "Review approved; task completed.",
 );
 
 assert.ok(
   history[0]?.timestamp,
 );
 
-console.log(
-  "Testing handler history integration test passed",
+assert.ok(
+  history[1]?.timestamp,
 );
+
+assert.ok(
+  history[2]?.timestamp,
+);
+
+console.log(
+  "Testing handler PASS history integration test passed",
+);
+
+//
+// REWORK FLOW
+//
+// TESTING -> TRIAGE -> FIX_REQUIRED
+//
 
 const reworkStore =
   new TaskStore();
+
+const reworkGuard =
+  new WorkflowGuard(
+    reworkStore,
+  );
 
 const reworkTask =
   createTask({
@@ -155,6 +220,7 @@ const reworkOutcome =
   handleTestResult(
     reworkTask,
     failedResult,
+    reworkGuard,
     reworkStore,
   );
 
@@ -165,12 +231,19 @@ assert.equal(
 
 assert.equal(
   reworkOutcome.task.status,
-  "REWORK",
+  "FIX_REQUIRED",
 );
 
 assert.equal(
   reworkOutcome.task.attempts,
   1,
+);
+
+assert.equal(
+  reworkStore.get(
+    reworkTask.id,
+  )?.status,
+  "FIX_REQUIRED",
 );
 
 const reworkHistory =
@@ -180,7 +253,7 @@ const reworkHistory =
 
 assert.equal(
   reworkHistory.length,
-  1,
+  2,
 );
 
 assert.equal(
@@ -190,11 +263,26 @@ assert.equal(
 
 assert.equal(
   reworkHistory[0]?.to,
-  "REWORK",
+  "TRIAGE",
 );
 
 assert.equal(
   reworkHistory[0]?.reason,
+  "Testing result received; task moved to TRIAGE.",
+);
+
+assert.equal(
+  reworkHistory[1]?.from,
+  "TRIAGE",
+);
+
+assert.equal(
+  reworkHistory[1]?.to,
+  "FIX_REQUIRED",
+);
+
+assert.equal(
+  reworkHistory[1]?.reason,
   "Testing failed due to an in-scope issue.",
 );
 
@@ -202,12 +290,27 @@ assert.ok(
   reworkHistory[0]?.timestamp,
 );
 
-console.log(
-  "Testing handler rework history integration test passed",
+assert.ok(
+  reworkHistory[1]?.timestamp,
 );
+
+console.log(
+  "Testing handler REWORK history integration test passed",
+);
+
+//
+// NEW TASK FLOW
+//
+// TESTING -> TRIAGE -> REVIEW -> DONE + CHILD
+//
 
 const childStore =
   new TaskStore();
+
+const childGuard =
+  new WorkflowGuard(
+    childStore,
+  );
 
 const parentTask =
   createTask({
@@ -258,6 +361,7 @@ const childOutcome =
   handleTestResult(
     parentTask,
     newTaskResult,
+    childGuard,
     childStore,
   );
 
@@ -322,6 +426,13 @@ assert.equal(
   true,
 );
 
+assert.equal(
+  childStore.getChildren(
+    parentTask.id,
+  ).length,
+  1,
+);
+
 const childHistory =
   childStore.getHistory(
     parentTask.id,
@@ -329,7 +440,7 @@ const childHistory =
 
 assert.equal(
   childHistory.length,
-  1,
+  3,
 );
 
 assert.equal(
@@ -339,16 +450,54 @@ assert.equal(
 
 assert.equal(
   childHistory[0]?.to,
-  "DONE",
+  "TRIAGE",
 );
 
 assert.equal(
   childHistory[0]?.reason,
-  "Testing failed due to an out-of-scope issue; original task completed.",
+  "Testing result received; task moved to TRIAGE.",
+);
+
+assert.equal(
+  childHistory[1]?.from,
+  "TRIAGE",
+);
+
+assert.equal(
+  childHistory[1]?.to,
+  "REVIEW",
+);
+
+assert.equal(
+  childHistory[1]?.reason,
+  "Triage passed; task moved to REVIEW.",
+);
+
+assert.equal(
+  childHistory[2]?.from,
+  "REVIEW",
+);
+
+assert.equal(
+  childHistory[2]?.to,
+  "DONE",
+);
+
+assert.equal(
+  childHistory[2]?.reason,
+  "Review approved; task completed.",
 );
 
 assert.ok(
   childHistory[0]?.timestamp,
+);
+
+assert.ok(
+  childHistory[1]?.timestamp,
+);
+
+assert.ok(
+  childHistory[2]?.timestamp,
 );
 
 console.log(

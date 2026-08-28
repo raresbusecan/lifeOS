@@ -23,6 +23,10 @@ import {
   TaskStore,
 } from "./taskStore.js";
 
+import {
+  WorkflowGuard,
+} from "./workflowGuard.js";
+
 export interface TestingOutcome {
   task: Task;
 
@@ -41,6 +45,7 @@ export interface TestingOutcome {
 export function handleTestResult(
   task: Task,
   result: TestResult,
+  guard: WorkflowGuard,
   store: TaskStore,
 ): TestingOutcome {
   validateTestResult(
@@ -59,11 +64,25 @@ export function handleTestResult(
   if (
     result.type === "PASS"
   ) {
-    const completedTask =
-      store.transition(
+    const triageTask =
+      guard.transition(
         task.id,
+        "TRIAGE",
+        "Testing passed; task moved to TRIAGE.",
+      );
+
+    const reviewTask =
+      guard.transition(
+        triageTask.id,
+        "REVIEW",
+        "Triage passed; task moved to REVIEW.",
+      );
+
+    const completedTask =
+      guard.transition(
+        reviewTask.id,
         "DONE",
-        "Testing passed.",
+        "Review approved; task completed.",
       );
 
     return {
@@ -84,11 +103,18 @@ export function handleTestResult(
     scope.classification ===
     "IN_SCOPE"
   ) {
-    const reworkTask =
-      store.transition(
+    const triageTask =
+      guard.transition(
         task.id,
-        "REWORK",
-        "Testing failed due to an in-scope issue.",
+        "TRIAGE",
+        "Testing failed; task moved to TRIAGE.",
+      );
+
+    const reworkTask =
+      guard.transition(
+        triageTask.id,
+        "FIX_REQUIRED",
+        "Triage classified the failure as related to the task.",
       );
 
     return {
@@ -99,11 +125,25 @@ export function handleTestResult(
     };
   }
 
-  const completedTask =
-    store.transition(
+  const triageTask =
+    guard.transition(
       task.id,
+      "TRIAGE",
+      "Testing failed; task moved to TRIAGE.",
+    );
+
+  const reviewTask =
+    guard.transition(
+      triageTask.id,
+      "REVIEW",
+      "Triage classified the failure as unrelated to the task.",
+    );
+
+  const completedTask =
+    guard.transition(
+      reviewTask.id,
       "DONE",
-      "Testing failed due to an out-of-scope issue; original task completed.",
+      "Original task completed; unrelated issue tracked separately.",
     );
 
   const sequence =
