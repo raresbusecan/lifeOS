@@ -1,4 +1,13 @@
 export type TaskStatus =
+  | "CREATED"
+  | "ANALYSIS"
+  | "CONTRACT_READY"
+  | "IMPACT_APPROVED"
+  | "GIT_READY"
+  | "IMPLEMENTED"
+  | "TRIAGE"
+  | "FIX_REQUIRED"
+  | "REVIEW"
   | "PROPOSED"
   | "COUNCIL"
   | "READY"

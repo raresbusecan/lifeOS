@@ -16,10 +16,12 @@ assert.equal(canTransition("COUNCIL", "CODING"), false);
 assert.equal(canTransition("TESTING", "CODING"), false);
 assert.deepEqual(getAllowedTransitions("DONE"), []);
 assert.deepEqual(getAllowedTransitions("CODING"), [
+    "IMPLEMENTED",
     "TESTING",
     "BLOCKED",
 ]);
 assert.deepEqual(getAllowedTransitions("TESTING"), [
+    "TRIAGE",
     "DONE",
     "REWORK",
     "BLOCKED",

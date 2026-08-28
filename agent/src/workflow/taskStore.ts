@@ -16,6 +16,16 @@ import {
   moveTask,
 } from "./workflow.js";
 
+import {
+  assertValidTask,
+} from "./taskValidator.js";
+
+export interface TaskStoreSnapshot {
+  version: 1;
+  tasks: Task[];
+  histories: Record<string, TaskTransition[]>;
+}
+
 export class TaskStore {
   private readonly tasks =
     new Map<string, Task>();
@@ -24,6 +34,8 @@ export class TaskStore {
     new Map<string, TaskTransition[]>();
 
   add(task: Task): void {
+    assertValidTask(task);
+
     if (
       this.tasks.has(task.id)
     ) {
@@ -56,6 +68,8 @@ export class TaskStore {
   }
 
   update(task: Task): void {
+    assertValidTask(task);
+
     if (
       !this.tasks.has(task.id)
     ) {
@@ -204,5 +218,74 @@ export class TaskStore {
     return Array.from(
       this.tasks.values(),
     );
+  }
+
+  toSnapshot(): TaskStoreSnapshot {
+    const histories: Record<
+      string,
+      TaskTransition[]
+    > = {};
+
+    for (const [taskId, history] of this.histories) {
+      histories[taskId] = [...history];
+    }
+
+    return {
+      version: 1,
+      tasks: this.getAll().map(
+        (task) => ({
+          ...task,
+          scope: {
+            ...task.scope,
+            files: [...task.scope.files],
+            components: [
+              ...task.scope.components,
+            ],
+            behavior: [
+              ...task.scope.behavior,
+            ],
+            exclusions: [
+              ...task.scope.exclusions,
+            ],
+          },
+        }),
+      ),
+      histories,
+    };
+  }
+
+  static fromSnapshot(
+    snapshot: TaskStoreSnapshot,
+  ): TaskStore {
+    if (snapshot.version !== 1) {
+      throw new Error(
+        `Unsupported task store version: ${snapshot.version}.`,
+      );
+    }
+
+    const store = new TaskStore();
+
+    for (const task of snapshot.tasks) {
+      store.add(task);
+    }
+
+    for (const task of snapshot.tasks) {
+      const history = snapshot.histories[task.id] ?? [];
+
+      if (!Array.isArray(history)) {
+        throw new Error(
+          `Task ${task.id} has an invalid transition history.`,
+        );
+      }
+
+      store.histories.set(
+        task.id,
+        history.map((transition) => ({
+          ...transition,
+        })),
+      );
+    }
+
+    return store;
   }
 }

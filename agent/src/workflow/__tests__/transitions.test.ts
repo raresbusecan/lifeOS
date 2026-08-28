@@ -126,9 +126,10 @@ assert.deepEqual(
 
 assert.deepEqual(
   getAllowedTransitions(
-    "CODING",
+  "CODING",
   ),
   [
+    "IMPLEMENTED",
     "TESTING",
     "BLOCKED",
   ],
@@ -136,9 +137,10 @@ assert.deepEqual(
 
 assert.deepEqual(
   getAllowedTransitions(
-    "TESTING",
+  "TESTING",
   ),
   [
+    "TRIAGE",
     "DONE",
     "REWORK",
     "BLOCKED",
