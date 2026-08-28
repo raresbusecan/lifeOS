@@ -1,77 +1,91 @@
 import type {
-  Task,
+Task,
 } from "./task.js";
 
 import type {
-  TestResult,
+TestResult,
 } from "./testing.js";
 
 import {
-  runCodingPhase,
-  handleWorkflowTestResult,
-  type WorkflowRunResult,
-  type WorkflowTestingResult,
+runCodingPhase,
+handleWorkflowTestResult,
+type WorkflowRunResult,
+type WorkflowTestingResult,
 } from "./workflowRunner.js";
 
 import {
-  TaskStore,
+TaskStore,
 } from "./taskStore.js";
 
 import {
-  WorkflowGuard,
+WorkflowGuard,
 } from "./workflowGuard.js";
 
 export class WorkflowCoordinator {
-  private readonly guard: WorkflowGuard;
+private readonly guard: WorkflowGuard;
 
-  constructor(
-    private readonly store: TaskStore,
-  ) {
-    this.guard =
-      new WorkflowGuard(
-        this.store,
-      );
-  }
+constructor(
+private readonly store: TaskStore,
+) {
+this.guard =
+new WorkflowGuard(
+this.store,
+);
+}
 
-  getTask(
-    taskId: string,
-  ): Task {
-    const task =
-      this.store.get(taskId);
+getTask(
+taskId: string,
+): Task {
+const task =
+this.store.get(
+taskId,
+);
 
-    if (!task) {
-      throw new Error(
-        `Task ${taskId} does not exist.`,
-      );
-    }
 
-    return task;
-  }
+if (!task) {
+  throw new Error(
+    `Task ${taskId} does not exist.`,
+  );
+}
 
-  startCoding(
-    taskId: string,
-  ): WorkflowRunResult {
-    const task =
-      this.getTask(taskId);
+return task;
 
-    return runCodingPhase(
-      task,
-      this.guard,
-    );
-  }
 
-  handleTestResult(
-    taskId: string,
-    result: TestResult,
-  ): WorkflowTestingResult {
-    const task =
-      this.getTask(taskId);
+}
 
-    return handleWorkflowTestResult(
-      task,
-      result,
-      this.guard,
-      this.store,
-    );
-  }
+startCoding(
+taskId: string,
+): WorkflowRunResult {
+const task =
+this.getTask(
+taskId,
+);
+
+return runCodingPhase(
+  task,
+  this.guard,
+);
+
+
+}
+
+handleTestResult(
+taskId: string,
+result: TestResult,
+): WorkflowTestingResult {
+const task =
+this.getTask(
+taskId,
+);
+
+
+return handleWorkflowTestResult(
+  task,
+  result,
+  this.guard,
+  this.store,
+);
+
+
+}
 }

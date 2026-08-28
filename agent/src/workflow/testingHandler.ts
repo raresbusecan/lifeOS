@@ -31,13 +31,13 @@ export interface TestingOutcome {
   task: Task;
 
   resultType:
-    | "PASS"
-    | "REWORK"
-    | "NEW_TASK";
+  | "PASS"
+  | "REWORK"
+  | "NEW_TASK";
 
   scope:
-    | ScopeClassificationResult
-    | null;
+  | ScopeClassificationResult
+  | null;
 
   newTask: Task | null;
 }
@@ -61,16 +61,36 @@ export function handleTestResult(
     );
   }
 
+  /*
+  
+  * TESTING
+  * ↓
+  * TRIAGE
+    */
+  const triageTask =
+    guard.transition(
+      task.id,
+      "TRIAGE",
+      result.type === "PASS"
+        ? "Testing passed; task moved to TRIAGE."
+        : "Testing result received; task moved to TRIAGE.",
+    );
+
+  /*
+  
+  * PASS
+  *
+  * TESTING
+  * ↓
+  * TRIAGE
+  * ↓
+  * REVIEW
+  * ↓
+  * DONE
+    */
   if (
     result.type === "PASS"
   ) {
-    const triageTask =
-      guard.transition(
-        task.id,
-        "TRIAGE",
-        "Testing passed; task moved to TRIAGE.",
-      );
-
     const reviewTask =
       guard.transition(
         triageTask.id,
@@ -91,6 +111,7 @@ export function handleTestResult(
       scope: null,
       newTask: null,
     };
+
   }
 
   const scope =
@@ -99,51 +120,63 @@ export function handleTestResult(
       result,
     );
 
+  /*
+  
+  * IN-SCOPE FAILURE
+  *
+  * TESTING
+  * ↓
+  * TRIAGE
+  * ↓
+  * FIX_REQUIRED
+    */
   if (
     scope.classification ===
     "IN_SCOPE"
   ) {
-    const triageTask =
-      guard.transition(
-        task.id,
-        "TRIAGE",
-        "Testing failed; task moved to TRIAGE.",
-      );
-
-    const reworkTask =
+    const fixRequiredTask =
       guard.transition(
         triageTask.id,
         "FIX_REQUIRED",
-        "Triage classified the failure as related to the task.",
+        "Testing failed due to an in-scope issue.",
       );
 
     return {
-      task: reworkTask,
+
+      task: fixRequiredTask,
       resultType: "REWORK",
       scope,
       newTask: null,
     };
+
   }
 
-  const triageTask =
-    guard.transition(
-      task.id,
-      "TRIAGE",
-      "Testing failed; task moved to TRIAGE.",
-    );
-
+  /*
+  
+  * OUT-OF-SCOPE FAILURE
+  *
+  * TESTING
+  * ↓
+  * TRIAGE
+  * ↓
+  * REVIEW
+  * ↓
+  * DONE
+  *
+  * * create child task
+      */
   const reviewTask =
     guard.transition(
       triageTask.id,
       "REVIEW",
-      "Triage classified the failure as unrelated to the task.",
+      "Testing failed due to an out-of-scope issue; original task moved to REVIEW.",
     );
 
   const completedTask =
     guard.transition(
       reviewTask.id,
       "DONE",
-      "Original task completed; unrelated issue tracked separately.",
+      "Review approved; original task completed.",
     );
 
   const sequence =
@@ -155,17 +188,20 @@ export function handleTestResult(
     createChildTask(
       completedTask,
       {
-        title: result.summary,
-        description: result.details,
+        title:
+          result.summary,
+        description:
+          result.details,
         scope: {
-          files: result.files ?? [],
+          files:
+            result.files ?? [],
           components:
             result.components ?? [],
           behavior:
             result.expectedBehavior
               ? [
-                  result.expectedBehavior,
-                ]
+                result.expectedBehavior,
+              ]
               : [],
           exclusions: [],
         },

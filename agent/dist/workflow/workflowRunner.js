@@ -1,7 +1,8 @@
 import { handleTestResult, } from "./testingHandler.js";
 export function runCodingPhase(task, guard) {
-    if (task.status !== "GIT_READY") {
-        throw new Error(`Coding phase can only start for a task in GIT_READY status. Current status: ${task.status}.`);
+    if (task.status !== "GIT_READY" &&
+        task.status !== "FIX_REQUIRED") {
+        throw new Error(`Coding phase can only start for a task in GIT_READY or FIX_REQUIRED status. Current status: ${task.status}.`);
     }
     const codingTask = guard.transition(task.id, "CODING", "Task moved to CODING.");
     const implementedTask = guard.transition(codingTask.id, "IMPLEMENTED", "Coding phase completed.");
