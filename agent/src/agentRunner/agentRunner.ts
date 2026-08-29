@@ -36,8 +36,7 @@ function stripCodeFence(
 function parseAgentOutput(
   content: string,
 ): AgentOutput {
-  const cleaned =
-    stripCodeFence(content);
+  const cleaned = stripCodeFence(content);
 
   let parsed: unknown;
 
@@ -53,8 +52,7 @@ function parseAgentOutput(
     );
   }
 
-  const output =
-    parsed as AgentOutput;
+  const output = parsed as AgentOutput;
 
   assertValidAgentOutput(output);
 
@@ -64,8 +62,7 @@ function parseAgentOutput(
 export async function runAgent(
   options: RunAgentOptions,
 ): Promise<AgentOutput> {
-  const definition =
-    getAgentDefinition(options.role);
+  const definition = getAgentDefinition(options.role);
 
   if (!definition.model) {
     throw new Error(
@@ -73,8 +70,7 @@ export async function runAgent(
     );
   }
 
-  const trimmedInput =
-    options.input.trim();
+  const trimmedInput = options.input.trim();
 
   if (!trimmedInput) {
     throw new Error(
@@ -82,9 +78,18 @@ export async function runAgent(
     );
   }
 
-    const client = new OllamaChatClient({
+  /*
+   * Local-only execution.
+   *
+   * The model is selected by AgentDefinition.
+   * runAgent awaits the complete response before returning,
+   * therefore agents invoked sequentially by the workflow
+   * never run concurrently through this function.
+   */
+  const client = new OllamaChatClient({
     model: definition.model,
-    timeoutMs: options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
+    timeoutMs:
+      options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
   });
 
   const messages: OllamaChatMessage[] = [
@@ -98,8 +103,7 @@ export async function runAgent(
     },
   ];
 
-  const response =
-    await client.chat(messages);
+  const response = await client.chat(messages);
 
   return parseAgentOutput(response);
 }

@@ -63,6 +63,32 @@ function toOllamaTools() {
                 },
             };
         }
+        if (tool.name === "write_file") {
+            return {
+                type: "function",
+                function: {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            path: {
+                                type: "string",
+                                description: "Repository-relative path of the file to create or overwrite.",
+                            },
+                            content: {
+                                type: "string",
+                                description: "Complete text content that should be written to the file.",
+                            },
+                        },
+                        required: [
+                            "path",
+                            "content",
+                        ],
+                    },
+                },
+            };
+        }
         return {
             type: "function",
             function: {

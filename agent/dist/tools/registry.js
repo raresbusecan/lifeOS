@@ -1,5 +1,6 @@
 import { readFileTool, executeReadFile, } from "./readFile.js";
 import { listFilesTool, executeListFiles, } from "./listFiles.js";
+import { writeFileTool, executeWriteFile, } from "./writeFile.js";
 const tools = [
     {
         definition: readFileTool,
@@ -8,6 +9,10 @@ const tools = [
     {
         definition: listFilesTool,
         execute: executeListFiles,
+    },
+    {
+        definition: writeFileTool,
+        execute: executeWriteFile,
     },
 ];
 export function listTools() {

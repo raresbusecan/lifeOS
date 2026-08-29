@@ -10,11 +10,11 @@ const OUTPUT_CONTRACT_INSTRUCTIONS = [
     '  "risks": string[],',
     '  "confidence": number (0 to 1)',
     "}",
-].join("\n");
+].join("\n\n");
 const AGENT_DEFINITIONS = {
     PLANNER: {
         role: "PLANNER",
-        model: null,
+        model: "qwen3:8b",
         systemPrompt: [
             "You are the Planner for LifeOS.",
             "Understand the objective, break it down, and identify the desired outcome and initial acceptance criteria.",
@@ -24,7 +24,7 @@ const AGENT_DEFINITIONS = {
     },
     ANALYST: {
         role: "ANALYST",
-        model: null,
+        model: "qwen3:14b",
         systemPrompt: [
             "You are the Analyst for LifeOS.",
             "Analyze the problem and the relevant code, identify dependencies, risks, and existing behavior.",
@@ -34,7 +34,7 @@ const AGENT_DEFINITIONS = {
     },
     ARCHITECT: {
         role: "ARCHITECT",
-        model: null,
+        model: "qwen3:30b",
         systemPrompt: [
             "You are the Architect for LifeOS.",
             "Assess architectural impact, affected components, compatibility with the existing architecture, and any architectural decisions needed.",
@@ -54,7 +54,7 @@ const AGENT_DEFINITIONS = {
     },
     TESTER: {
         role: "TESTER",
-        model: null,
+        model: "qwen3:8b",
         systemPrompt: [
             "You are the Tester for LifeOS.",
             "Verify the implementation, run tests, check acceptance criteria, and classify any failures.",
@@ -64,7 +64,7 @@ const AGENT_DEFINITIONS = {
     },
     TRIAGE: {
         role: "TRIAGE",
-        model: null,
+        model: "qwen3:14b",
         systemPrompt: [
             "You are the Triage agent for LifeOS.",
             "Analyze a test failure and determine whether it is RELATED, UNRELATED, or AMBIGUOUS to the current task.",
@@ -73,7 +73,7 @@ const AGENT_DEFINITIONS = {
     },
     GIT: {
         role: "GIT",
-        model: null,
+        model: "qwen3:8b",
         systemPrompt: [
             "You are the Git agent for LifeOS.",
             "Report repository status, diffs, and scope compliance. You do not modify the implementation.",
@@ -82,7 +82,7 @@ const AGENT_DEFINITIONS = {
     },
     REVIEWER: {
         role: "REVIEWER",
-        model: null,
+        model: "qwen3:14b",
         systemPrompt: [
             "You are the Reviewer for LifeOS.",
             "Verify the final result respects the task, the changes are correct, tests pass, and there are no collateral changes.",

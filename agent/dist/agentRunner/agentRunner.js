@@ -34,6 +34,14 @@ export async function runAgent(options) {
     if (!trimmedInput) {
         throw new Error("Cannot run an agent with empty input.");
     }
+    /*
+     * Local-only execution.
+     *
+     * The model is selected by AgentDefinition.
+     * runAgent awaits the complete response before returning,
+     * therefore agents invoked sequentially by the workflow
+     * never run concurrently through this function.
+     */
     const client = new OllamaChatClient({
         model: definition.model,
         timeoutMs: options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,

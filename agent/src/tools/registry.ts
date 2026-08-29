@@ -14,6 +14,11 @@ import {
   executeListFiles,
 } from "./listFiles.js";
 
+import {
+  writeFileTool,
+  executeWriteFile,
+} from "./writeFile.js";
+
 export interface RegisteredTool {
   definition: ToolDefinition;
   execute: (
@@ -30,6 +35,10 @@ const tools: RegisteredTool[] = [
   {
     definition: listFilesTool,
     execute: executeListFiles,
+  },
+  {
+    definition: writeFileTool,
+    execute: executeWriteFile,
   },
 ];
 
