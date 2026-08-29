@@ -27,6 +27,19 @@ import {
   createTaskContract,
 } from "../taskContract.js";
 
+import type { ImpactMap } from "../impactMap.js";
+
+const validImpactMap: ImpactMap = {
+  filesToModify: ["src/workflow/task.ts"],
+  filesToCreate: [],
+  testsToModify: [],
+  testsToCreate: [],
+  componentsAffected: ["workflow"],
+  componentsProtected: [],
+  architectureRisks: [],
+  confidence: 0.9,
+};
+
 const repositoryRoot = await mkdtemp(
   join(tmpdir(), "lifeos-workflow-guard-"),
 );
@@ -70,10 +83,18 @@ try {
 
   const guard = new WorkflowGuard(store);
 
-  advance(guard, task.id, [
+    advance(guard, task.id, [
     "ANALYSIS",
     "COUNCIL",
     "CONTRACT_READY",
+  ]);
+
+  store.update({
+    ...store.get(task.id)!,
+    impactMap: validImpactMap,
+  });
+
+  advance(guard, task.id, [
     "IMPACT_APPROVED",
     "GIT_READY",
     "CODING",
@@ -125,10 +146,18 @@ try {
 
   const retryGuard = new WorkflowGuard(retryStore);
 
-  advance(retryGuard, retryTask.id, [
+    advance(retryGuard, retryTask.id, [
     "ANALYSIS",
     "COUNCIL",
     "CONTRACT_READY",
+  ]);
+
+  retryStore.update({
+    ...retryStore.get(retryTask.id)!,
+    impactMap: validImpactMap,
+  });
+
+  advance(retryGuard, retryTask.id, [
     "IMPACT_APPROVED",
     "GIT_READY",
   ]);
@@ -170,7 +199,87 @@ try {
 
   assert.equal(
     retryGuard.getTask(retryTask.id).status, "COUNCIL");
-} finally {
+      const impactMapStore = new TaskStore();
+  const impactMapTask = createOfficialTask();
+
+  impactMapStore.add(impactMapTask);
+  impactMapStore.attachContract(
+    createTaskContract({
+      taskId: impactMapTask.id,
+      objective: impactMapTask.description,
+      scope: impactMapTask.scope,
+    }),
+  );
+
+  const impactMapGuard = new WorkflowGuard(impactMapStore);
+
+  advance(impactMapGuard, impactMapTask.id, [
+    "ANALYSIS",
+    "COUNCIL",
+    "CONTRACT_READY",
+  ]);
+
+  // FAIL: fără impactMap.
+  assert.throws(
+    () =>
+      impactMapGuard.transition(
+        impactMapTask.id,
+        "IMPACT_APPROVED",
+        "Attempt without impact map.",
+      ),
+    /must have an Impact Map/,
+  );
+
+  // FAIL: impactMap invalid.
+  // Notă: TaskStore.update()/add() blochează deja un impactMap invalid
+  // prin taskValidator, deci nu putem ajunge aici prin API-ul public.
+  // Injectăm direct în harta internă a store-ului ca să simulăm un task
+  // corupt/dintr-un snapshot vechi și să dovedim că WorkflowGuard însuși
+  // blochează tranziția, nu doar TaskStore.
+  const invalidImpactMap = {
+    ...validImpactMap,
+    confidence: 1.5,
+  } as ImpactMap;
+
+  const corruptedTask = {
+    ...impactMapStore.get(impactMapTask.id)!,
+    impactMap: invalidImpactMap,
+  };
+
+  (
+    impactMapStore as unknown as {
+      tasks: Map<string, typeof corruptedTask>;
+    }
+  ).tasks.set(impactMapTask.id, corruptedTask);
+
+  assert.throws(
+    () =>
+      impactMapGuard.transition(
+        impactMapTask.id,
+        "IMPACT_APPROVED",
+        "Attempt with invalid impact map.",
+      ),
+    /has an invalid Impact Map/,
+  );
+
+  // PASS: impactMap valid.
+  impactMapStore.update({
+    ...impactMapStore.get(impactMapTask.id)!,
+    impactMap: validImpactMap,
+  });
+
+  impactMapGuard.transition(
+    impactMapTask.id,
+    "IMPACT_APPROVED",
+    "Approve with valid impact map.",
+  );
+
+  assert.equal(
+    impactMapGuard.getTask(impactMapTask.id).status,
+    "IMPACT_APPROVED",
+  );
+
+  } finally {
   await rm(repositoryRoot, {
     recursive: true,
     force: true,

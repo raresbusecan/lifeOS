@@ -64,7 +64,10 @@ export function validateTaskContract(contract) {
 export function assertValidTaskContract(contract) {
     const result = validateTaskContract(contract);
     if (!result.valid) {
-        throw new Error(["Invalid task contract:", ...result.errors.map((error) => `- ${error}`)].join("\n"));
+        throw new Error([
+            "Invalid task contract:",
+            ...result.errors.map((error) => `- ${error}`),
+        ].join("\n"));
     }
 }
 export function createTaskContract(params) {

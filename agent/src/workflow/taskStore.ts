@@ -1,6 +1,3 @@
-import type {
-  Task,
-} from "./task.js";
 
 import {
   appendTransition,
@@ -25,6 +22,26 @@ import {
   assertValidTaskContract,
 } from "./taskContract.js";
 
+import type {
+  Task,
+} from "./task.js";
+
+import type { ImpactMap } from "./impactMap.js";
+
+function cloneImpactMap(
+  impactMap: ImpactMap,
+): ImpactMap {
+  return {
+    filesToModify: [...impactMap.filesToModify],
+    filesToCreate: [...impactMap.filesToCreate],
+    testsToModify: [...impactMap.testsToModify],
+    testsToCreate: [...impactMap.testsToCreate],
+    componentsAffected: [...impactMap.componentsAffected],
+    componentsProtected: [...impactMap.componentsProtected],
+    architectureRisks: [...impactMap.architectureRisks],
+    confidence: impactMap.confidence,
+  };
+}
 export interface TaskStoreSnapshot {
   version: 1;
   tasks: Task[];
@@ -290,7 +307,7 @@ export class TaskStore {
       };
     }
 
-    return {
+      return {
       version: 1,
       tasks: this.getAll().map(
         (task) => ({
@@ -308,6 +325,9 @@ export class TaskStore {
               ...task.scope.exclusions,
             ],
           },
+          ...(task.impactMap
+            ? { impactMap: cloneImpactMap(task.impactMap) }
+            : {}),
         }),
       ),
       histories,

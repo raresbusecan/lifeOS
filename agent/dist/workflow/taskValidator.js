@@ -1,3 +1,4 @@
+import { assertValidImpactMap } from "./impactMap.js";
 const VALID_STATUSES = [
     "CREATED",
     "ANALYSIS",
@@ -52,6 +53,20 @@ function validateScope(scope, errors) {
     }
     return errors.every((error) => !error.startsWith("scope."));
 }
+function validateImpactMap(impactMap, errors) {
+    if (impactMap === undefined) {
+        // impactMap este opțional — task-urile fără el rămân valide.
+        return;
+    }
+    try {
+        assertValidImpactMap(impactMap);
+    }
+    catch (error) {
+        errors.push(error instanceof Error
+            ? `impactMap: ${error.message}`
+            : "impactMap is invalid.");
+    }
+}
 export function validateTask(task) {
     const errors = [];
     if (typeof task !== "object" ||
@@ -86,6 +101,7 @@ export function validateTask(task) {
         errors.push("attempts must be an integer greater than or equal to 0.");
     }
     validateScope(value.scope, errors);
+    validateImpactMap(value.impactMap, errors);
     if (value.parentTaskId !== null &&
         typeof value.parentTaskId !==
             "string") {

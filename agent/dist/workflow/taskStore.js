@@ -2,6 +2,18 @@ import { appendTransition, createTransition, } from "./history.js";
 import { moveTask, } from "./workflow.js";
 import { assertValidTask, } from "./taskValidator.js";
 import { assertValidTaskContract, } from "./taskContract.js";
+function cloneImpactMap(impactMap) {
+    return {
+        filesToModify: [...impactMap.filesToModify],
+        filesToCreate: [...impactMap.filesToCreate],
+        testsToModify: [...impactMap.testsToModify],
+        testsToCreate: [...impactMap.testsToCreate],
+        componentsAffected: [...impactMap.componentsAffected],
+        componentsProtected: [...impactMap.componentsProtected],
+        architectureRisks: [...impactMap.architectureRisks],
+        confidence: impactMap.confidence,
+    };
+}
 export class TaskStore {
     tasks = new Map();
     histories = new Map();
@@ -46,10 +58,13 @@ export class TaskStore {
         if (!this.tasks.has(taskId)) {
             throw new Error(`Task ${taskId} does not exist.`);
         }
-        return [...(this.histories.get(taskId) ?? [])];
+        return [
+            ...(this.histories.get(taskId) ?? []),
+        ];
     }
     getChildren(parentTaskId) {
-        return Array.from(this.tasks.values()).filter((task) => task.parentTaskId === parentTaskId);
+        return Array.from(this.tasks.values()).filter((task) => task.parentTaskId ===
+            parentTaskId);
     }
     getNextChildSequence(parentTaskId) {
         const children = this.getChildren(parentTaskId);
@@ -64,7 +79,8 @@ export class TaskStore {
             }
             const sequenceText = child.id.slice(prefix.length);
             const sequence = Number(sequenceText);
-            if (Number.isInteger(sequence) && sequence > highestSequence) {
+            if (Number.isInteger(sequence) &&
+                sequence > highestSequence) {
                 highestSequence = sequence;
             }
         }
@@ -115,10 +131,19 @@ export class TaskStore {
                 scope: {
                     ...task.scope,
                     files: [...task.scope.files],
-                    components: [...task.scope.components],
-                    behavior: [...task.scope.behavior],
-                    exclusions: [...task.scope.exclusions],
+                    components: [
+                        ...task.scope.components,
+                    ],
+                    behavior: [
+                        ...task.scope.behavior,
+                    ],
+                    exclusions: [
+                        ...task.scope.exclusions,
+                    ],
                 },
+                ...(task.impactMap
+                    ? { impactMap: cloneImpactMap(task.impactMap) }
+                    : {}),
             })),
             histories,
             contracts,

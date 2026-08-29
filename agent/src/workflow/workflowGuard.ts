@@ -7,6 +7,10 @@ import {
   TaskStore,
 } from "./taskStore.js";
 
+import {
+  assertValidImpactMap,
+} from "./impactMap.js";
+
 const OFFICIAL_WORKFLOW_STATUSES = new Set<TaskStatus>([
   "CREATED",
   "ANALYSIS",
@@ -95,6 +99,45 @@ export class WorkflowGuard {
         `Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`,
       );
     }
+
+        if (
+      CONTRACT_REQUIRED_STATUSES.has(nextStatus) &&
+      !this.store.hasContract(task.id)
+    ) {
+      throw new Error(
+        `Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`,
+      );
+    }
+
+    if (
+      task.status === "CONTRACT_READY" &&
+      nextStatus === "IMPACT_APPROVED"
+    ) {
+      if (!task.impactMap) {
+        throw new Error(
+          `Task ${task.id} must have an Impact Map before moving to IMPACT_APPROVED.`,
+        );
+      }
+
+      try {
+        assertValidImpactMap(task.impactMap);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Impact Map is invalid.";
+
+        throw new Error(
+          `Task ${task.id} has an invalid Impact Map: ${message}`,
+        );
+      }
+    }
+
+    return this.store.transition(
+      task.id,
+      nextStatus,
+      reason,
+    );
 
     return this.store.transition(
       task.id,

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { createTaskContract, validateTaskContract, assertValidTaskContract, } from "../taskContract.js";
+//
+// VALID CONTRACT CREATION TEST
+//
 const validContract = createTaskContract({
     taskId: "TASK-001",
     objective: "Implement task contract schema",
@@ -23,9 +26,15 @@ assert.equal(validContract.acceptanceCriteria.length, 2);
 assert.equal(validContract.constraints.length, 1);
 assert.equal(validContract.requiredTests.length, 1);
 assert.equal(validContract.dependencies.length, 1);
+//
+// VALIDATION TEST (VALID)
+//
 const validResult = validateTaskContract(validContract);
 assert.equal(validResult.valid, true);
 assert.equal(validResult.errors.length, 0);
+//
+// VALIDATION TEST (INVALID FIELDS)
+//
 const invalidContract = {
     taskId: "",
     objective: " ",
@@ -38,5 +47,8 @@ const invalidContract = {
 const invalidResult = validateTaskContract(invalidContract);
 assert.equal(invalidResult.valid, false);
 assert.ok(invalidResult.errors.length > 0);
+//
+// ASSERT VALID CONTRACT TEST (THROWS ON INVALID)
+//
 assert.throws(() => assertValidTaskContract(invalidContract), /Invalid task contract:/);
 console.log("Task contract unit tests passed");

@@ -4,6 +4,8 @@ import type {
   TaskScope,
   TaskStatus,
 } from "./task.js";
+import type { ImpactMap } from "./impactMap.js";
+import { assertValidImpactMap } from "./impactMap.js";
 
 const VALID_STATUSES: TaskStatus[] = [
   "CREATED",
@@ -102,6 +104,26 @@ function validateScope(
   );
 }
 
+function validateImpactMap(
+  impactMap: unknown,
+  errors: string[],
+): void {
+  if (impactMap === undefined) {
+    // impactMap este opțional — task-urile fără el rămân valide.
+    return;
+  }
+
+  try {
+    assertValidImpactMap(impactMap as ImpactMap);
+  } catch (error) {
+    errors.push(
+      error instanceof Error
+        ? `impactMap: ${error.message}`
+        : "impactMap is invalid.",
+    );
+  }
+}
+
 export function validateTask(
   task: unknown,
 ): TaskValidationResult {
@@ -177,6 +199,11 @@ export function validateTask(
 
   validateScope(
     value.scope,
+    errors,
+  );
+
+  validateImpactMap(
+    value.impactMap,
     errors,
   );
 

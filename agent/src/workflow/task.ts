@@ -1,3 +1,6 @@
+import type { ImpactMap } from "./impactMap.js";
+
+
 export type TaskStatus =
   | "CREATED"
   | "ANALYSIS"
@@ -39,4 +42,5 @@ export interface Task {
   attempts: number;
   scope: TaskScope;
   parentTaskId: string | null;
+  impactMap?: ImpactMap;
 }

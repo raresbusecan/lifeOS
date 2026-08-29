@@ -5,7 +5,8 @@ export class WorkflowCoordinator {
     guard;
     constructor(store) {
         this.store = store;
-        this.guard = new WorkflowGuard(this.store);
+        this.guard =
+            new WorkflowGuard(this.store);
     }
     attachContract(contract) {
         this.store.attachContract(contract);
