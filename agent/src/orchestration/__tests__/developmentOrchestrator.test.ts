@@ -1,4 +1,3 @@
-
 import assert from "node:assert/strict";
 
 import {
@@ -59,7 +58,7 @@ assert.equal(
 
 assert.equal(
   result.agents.length,
-  3,
+  5,
 );
 
 assert.deepEqual(
@@ -70,6 +69,8 @@ assert.deepEqual(
     "PLANNER",
     "ANALYST",
     "ARCHITECT",
+    "CODER",
+    "TESTER",
   ],
 );
 
@@ -91,6 +92,5 @@ assert.equal(
 );
 
 console.log(
-  "Development orchestrator Planner → Analyst → Architect test passed",
+  "Development orchestrator Planner → Analyst → Architect → Coder → Tester test passed",
 );
-

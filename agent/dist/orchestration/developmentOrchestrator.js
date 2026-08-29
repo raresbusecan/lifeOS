@@ -1,136 +1,120 @@
-import { WorkflowCoordinator, } from "../workflow/workflowCoordinator.js";
-import { runAgentLoop, } from "../agent/loop.js";
+import { WorkflowCoordinator } from "../workflow/workflowCoordinator.js";
+import { AgentOrchestrator } from "../agentRunner/agentOrchestrator.js";
+import { OrganizationState, } from "../organization/organizationState.js";
+import { DepartmentContextBuilder, } from "../organization/departmentContext.js";
+const DEVELOPMENT_FLOW = [
+    {
+        department: "PLANNING",
+        role: "PLANNER",
+    },
+    {
+        department: "ANALYSIS",
+        role: "ANALYST",
+    },
+    {
+        department: "ARCHITECTURE",
+        role: "ARCHITECT",
+    },
+    {
+        department: "DEVELOPMENT",
+        role: "CODER",
+    },
+    {
+        department: "TESTING",
+        role: "TESTER",
+    },
+];
 export class DevelopmentOrchestrator {
     store;
-    options;
+    agents;
     workflow;
+    organization;
+    contextBuilder;
     constructor(store, options = {}) {
         this.store = store;
-        this.options = options;
+        this.agents = new AgentOrchestrator({
+            timeoutMs: options.timeoutMs,
+        });
         this.workflow = new WorkflowCoordinator(this.store);
+        this.organization = new OrganizationState();
+        this.contextBuilder = new DepartmentContextBuilder(this.organization);
     }
     async run(taskId) {
-        let task = this.workflow.getTask(taskId);
+        const task = this.workflow.getTask(taskId);
+        this.organization.initializeTask(taskId);
         const agents = [];
-        const planner = await this.runAgent("PLANNER", this.buildPlannerPrompt(task));
-        agents.push(planner);
-        const analyst = await this.runAgent("ANALYST", this.buildAnalystPrompt(task, planner.answer));
-        agents.push(analyst);
-        const architect = await this.runAgent("ARCHITECT", this.buildArchitectPrompt(task, planner.answer, analyst.answer));
-        agents.push(architect);
-        /*
-         * The first orchestration milestone is:
-         *
-         * PLANNER -> ANALYST -> ARCHITECT
-         *
-         * We deliberately do not start CODER yet.
-         *
-         * The next step is to turn the architect output into:
-         *   1. TaskContract
-         *   2. ImpactMap
-         *   3. CONTRACT_READY
-         *   4. IMPACT_APPROVED
-         *   5. GIT_READY
-         *
-         * That gives us a deterministic boundary before allowing
-         * the coding agent to modify the repository.
-         */
-        task = this.workflow.getTask(taskId);
+        for (const stage of DEVELOPMENT_FLOW) {
+            const result = await this.runDepartment(task, stage.department, stage.role);
+            agents.push(result);
+        }
         return {
-            task,
+            task: this.workflow.getTask(taskId),
             agents,
         };
     }
-    async runAgent(role, prompt) {
-        const result = await runAgentLoop(process.cwd(), [
-            {
-                role: "system",
-                content: [
-                    "You are a development department agent.",
-                    `Your department role is ${role}.`,
-                    "Analyze the task and return a concise professional result.",
-                    "Do not claim that files were modified unless you actually used a tool.",
-                ].join(" "),
-            },
-            {
-                role: "user",
-                content: prompt,
-            },
-        ], {
-            chatModel: this.options.chatModel,
-            maxSteps: this.options.maxAgentSteps,
-        });
-        return {
-            role,
-            answer: result.answer,
-        };
-    }
-    buildPlannerPrompt(task) {
-        return [
-            "PLAN THIS DEVELOPMENT TASK.",
+    async runDepartment(task, department, role) {
+        const context = this.contextBuilder.build(task.id, department, role);
+        const input = [
+            context.instructions,
             "",
-            `Task ID: ${task.id}`,
-            `Title: ${task.title}`,
-            `Description: ${task.description}`,
+            "TASK:",
+            `ID: ${task.id}`,
+            `TITLE: ${task.title}`,
+            `DESCRIPTION: ${task.description}`,
             "",
-            "Scope:",
+            "TASK SCOPE:",
             JSON.stringify(task.scope, null, 2),
             "",
-            "Produce:",
-            "- objective",
-            "- expected outcome",
-            "- acceptance criteria",
-            "- implementation direction",
-            "- important risks",
+            "ORGANIZATIONAL CONTEXT:",
+            JSON.stringify({
+                previousExecutions: context.previousExecutions,
+                previousDecisions: context.previousDecisions,
+                previousReports: context.previousReports,
+                existingArtifacts: context.existingArtifacts,
+            }, null, 2),
         ].join("\n");
+        const startedAt = new Date().toISOString();
+        const agentResult = await this.agents.run(role, input);
+        const completedAt = new Date().toISOString();
+        const answer = agentResult.output
+            ? JSON.stringify(agentResult.output, null, 2)
+            : "";
+        this.organization.recordExecution({
+            taskId: task.id,
+            department,
+            role,
+            startedAt,
+            completedAt,
+            status: "COMPLETED",
+            inputSummary: input,
+            outputSummary: answer,
+            decisions: [],
+            findings: agentResult.output?.findings ?? [],
+            risks: agentResult.output?.risks ?? [],
+            artifacts: agentResult.output?.files ?? [],
+        });
+        this.organization.recordReport(task.id, {
+            department,
+            role,
+            summary: answer,
+            findings: agentResult.output?.findings ?? [],
+            recommendations: agentResult.output?.recommendations ?? [],
+            risks: agentResult.output?.risks ?? [],
+            files: agentResult.output?.files ?? [],
+            confidence: agentResult.output?.confidence ?? 0,
+            createdAt: completedAt,
+        });
+        return {
+            taskId: task.id,
+            department,
+            role,
+            answer,
+        };
     }
-    buildAnalystPrompt(task, plannerAnswer) {
-        return [
-            "ANALYZE THIS DEVELOPMENT TASK.",
-            "",
-            `Task ID: ${task.id}`,
-            `Title: ${task.title}`,
-            `Description: ${task.description}`,
-            "",
-            "Planner result:",
-            plannerAnswer,
-            "",
-            "Analyze:",
-            "- repository behavior",
-            "- dependencies",
-            "- affected files",
-            "- affected components",
-            "- risks",
-            "- constraints",
-            "",
-            "Do not modify files.",
-        ].join("\n");
+    getOrganizationState(taskId) {
+        return this.organization.getSnapshot(taskId);
     }
-    buildArchitectPrompt(task, plannerAnswer, analystAnswer) {
-        return [
-            "ASSESS THE ARCHITECTURAL IMPACT OF THIS DEVELOPMENT TASK.",
-            "",
-            `Task ID: ${task.id}`,
-            `Title: ${task.title}`,
-            `Description: ${task.description}`,
-            "",
-            "Planner result:",
-            plannerAnswer,
-            "",
-            "Analyst result:",
-            analystAnswer,
-            "",
-            "Define:",
-            "- implementation boundary",
-            "- files to modify",
-            "- files to create",
-            "- components affected",
-            "- components protected",
-            "- architectural risks",
-            "- tests required",
-            "- confidence",
-            "",
-            "Do not modify files.",
-        ].join("\n");
+    getDepartmentContext(taskId, role) {
+        return this.contextBuilder.buildForRole(taskId, role);
     }
 }
