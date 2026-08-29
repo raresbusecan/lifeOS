@@ -1,39 +1,44 @@
 import type {
-    DepartmentArtifact,
-    DepartmentDecision,
-    DepartmentExecution,
-    DepartmentId,
-    DepartmentReport,
-    } from "./department.js";
-    
-    export interface OrganizationTaskState {
-    taskId: string;
-    
-    executions: DepartmentExecution[];
-    decisions: DepartmentDecision[];
-    reports: DepartmentReport[];
-    artifacts: DepartmentArtifact[];
-    
-    createdAt: string;
-    updatedAt: string;
-    }
-    
-    export class OrganizationState {
-    private readonly tasks =
-    new Map<string, OrganizationTaskState>();
-    
-    initializeTask(
+  DepartmentArtifact,
+  DepartmentDecision,
+  DepartmentExecution,
+  DepartmentId,
+  DepartmentReport,
+} from "./department.js";
+
+export interface OrganizationTaskState {
+  taskId: string;
+
+  executions: DepartmentExecution[];
+
+  decisions: DepartmentDecision[];
+
+  reports: DepartmentReport[];
+
+  artifacts: DepartmentArtifact[];
+
+  createdAt: string;
+
+  updatedAt: string;
+}
+
+export class OrganizationState {
+  private readonly tasks = new Map<
+    string,
+    OrganizationTaskState
+  >();
+
+  initializeTask(
     taskId: string,
-    ): OrganizationTaskState {
+  ): OrganizationTaskState {
     const existing = this.tasks.get(taskId);
-    
- 
+
     if (existing) {
       return existing;
     }
-    
+
     const now = new Date().toISOString();
-    
+
     const state: OrganizationTaskState = {
       taskId,
       executions: [],
@@ -43,174 +48,153 @@ import type {
       createdAt: now,
       updatedAt: now,
     };
-    
+
     this.tasks.set(taskId, state);
-    
+
     return state;
-   
-    
-    }
-    
-    getTaskState(
+  }
+
+  getTaskState(
     taskId: string,
-    ): OrganizationTaskState {
+  ): OrganizationTaskState {
     const state = this.tasks.get(taskId);
-    
 
     if (!state) {
       throw new Error(
         `Organization state for task ${taskId} does not exist.`,
       );
     }
-    
-    return state;
 
-    
-    }
-    
-    hasTask(
+    return state;
+  }
+
+  hasTask(
     taskId: string,
-    ): boolean {
+  ): boolean {
     return this.tasks.has(taskId);
-    }
-    
-    recordExecution(
+  }
+
+  recordExecution(
     execution: DepartmentExecution,
-    ): void {
+  ): void {
     const state = this.initializeTask(
-    execution.department === "COUNCIL"
-    ? execution.inputSummary
-    : "",
+      execution.taskId,
     );
-    
-   
-    const taskState =
-      this.findOrCreateExecutionState(
-        execution,
-      );
-    
-    taskState.executions.push(execution);
-    taskState.updatedAt =
+
+    state.executions.push(execution);
+
+    state.updatedAt =
       new Date().toISOString();
-    
-    void state;
- 
-    
-    }
-    
-    recordDecision(
+  }
+
+  recordDecision(
     decision: DepartmentDecision,
-    ): void {
+  ): void {
     const state = this.initializeTask(
-    decision.taskId,
+      decision.taskId,
     );
-    
 
     state.decisions.push(decision);
+
     state.updatedAt =
       new Date().toISOString();
- 
-    
-    }
-    
-    recordReport(
+  }
+
+  recordReport(
     taskId: string,
     report: DepartmentReport,
-    ): void {
-    const state =
-    this.initializeTask(taskId);
-    
- 
+  ): void {
+    const state = this.initializeTask(
+      taskId,
+    );
+
     state.reports.push(report);
+
     state.updatedAt =
       new Date().toISOString();
+  }
 
-    
-    }
-    
-    recordArtifact(
+  recordArtifact(
     taskId: string,
     artifact: DepartmentArtifact,
-    ): void {
-    const state =
-    this.initializeTask(taskId);
-    
- 
+  ): void {
+    const state = this.initializeTask(
+      taskId,
+    );
+
     state.artifacts.push(artifact);
+
     state.updatedAt =
       new Date().toISOString();
+  }
 
-    
-    }
-    
-    getExecutions(
+  getExecutions(
     taskId: string,
-    ): DepartmentExecution[] {
+  ): DepartmentExecution[] {
     return [
-    ...this.getTaskState(taskId).executions,
+      ...this.getTaskState(taskId).executions,
     ];
-    }
-    
-    getDecisions(
+  }
+
+  getDecisions(
     taskId: string,
-    ): DepartmentDecision[] {
+  ): DepartmentDecision[] {
     return [
-    ...this.getTaskState(taskId).decisions,
+      ...this.getTaskState(taskId).decisions,
     ];
-    }
-    
-    getReports(
+  }
+
+  getReports(
     taskId: string,
-    ): DepartmentReport[] {
+  ): DepartmentReport[] {
     return [
-    ...this.getTaskState(taskId).reports,
+      ...this.getTaskState(taskId).reports,
     ];
-    }
-    
-    getArtifacts(
+  }
+
+  getArtifacts(
     taskId: string,
-    ): DepartmentArtifact[] {
+  ): DepartmentArtifact[] {
     return [
-    ...this.getTaskState(taskId).artifacts,
+      ...this.getTaskState(taskId).artifacts,
     ];
-    }
-    
-    getDepartmentExecutions(
+  }
+
+  getDepartmentExecutions(
     taskId: string,
     department: DepartmentId,
-    ): DepartmentExecution[] {
+  ): DepartmentExecution[] {
     return this.getExecutions(taskId).filter(
-    (execution) =>
-    execution.department === department,
+      (execution) =>
+        execution.department === department,
     );
-    }
-    
-    getDepartmentDecisions(
+  }
+
+  getDepartmentDecisions(
     taskId: string,
     department: DepartmentId,
-    ): DepartmentDecision[] {
+  ): DepartmentDecision[] {
     return this.getDecisions(taskId).filter(
-    (decision) =>
-    decision.department === department,
+      (decision) =>
+        decision.department === department,
     );
-    }
-    
-    getDepartmentReports(
+  }
+
+  getDepartmentReports(
     taskId: string,
     department: DepartmentId,
-    ): DepartmentReport[] {
+  ): DepartmentReport[] {
     return this.getReports(taskId).filter(
-    (report) =>
-    report.department === department,
+      (report) =>
+        report.department === department,
     );
-    }
-    
-    getSnapshot(
+  }
+
+  getSnapshot(
     taskId: string,
-    ): OrganizationTaskState {
+  ): OrganizationTaskState {
     const state =
-    this.getTaskState(taskId);
-    
+      this.getTaskState(taskId);
 
     return {
       taskId: state.taskId,
@@ -221,37 +205,6 @@ import type {
       createdAt: state.createdAt,
       updatedAt: state.updatedAt,
     };
+  }
+}
 
-    
-    }
-    
-    private findOrCreateExecutionState(
-    execution: DepartmentExecution,
-    ): OrganizationTaskState {
-    /*
-    * DepartmentExecution currently does not carry taskId.
-    * Until that field is added to the shared department contract,
-    * executions cannot be reliably associated with a task.
-    *
-    * The caller should therefore initialize the task state before
-    * recording the execution.
-    */
-    const possibleTaskId =
-    execution.inputSummary;
-    
- 
-    const existing =
-      this.tasks.get(possibleTaskId);
-    
-    if (existing) {
-      return existing;
-    }
-    
-    return this.initializeTask(
-      possibleTaskId,
-    );
-
-    
-    }
-    }
-    
