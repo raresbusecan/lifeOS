@@ -100,15 +100,6 @@ export class WorkflowGuard {
       );
     }
 
-        if (
-      CONTRACT_REQUIRED_STATUSES.has(nextStatus) &&
-      !this.store.hasContract(task.id)
-    ) {
-      throw new Error(
-        `Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`,
-      );
-    }
-
     if (
       task.status === "CONTRACT_READY" &&
       nextStatus === "IMPACT_APPROVED"
@@ -132,12 +123,6 @@ export class WorkflowGuard {
         );
       }
     }
-
-    return this.store.transition(
-      task.id,
-      nextStatus,
-      reason,
-    );
 
     return this.store.transition(
       task.id,

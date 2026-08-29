@@ -11,6 +11,9 @@ export class WorkflowCoordinator {
     attachContract(contract) {
         this.store.attachContract(contract);
     }
+    getContract(taskId) {
+        return this.store.getContract(taskId);
+    }
     getTask(taskId) {
         const task = this.store.get(taskId);
         if (!task) {

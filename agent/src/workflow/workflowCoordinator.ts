@@ -43,6 +43,12 @@ attachContract(
   this.store.attachContract(contract);
 }
 
+getContract(
+  taskId: string,
+): TaskContract | undefined {
+  return this.store.getContract(taskId);
+}
+
 getTask(
 taskId: string,
 ): Task {

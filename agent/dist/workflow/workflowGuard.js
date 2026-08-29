@@ -50,10 +50,6 @@ export class WorkflowGuard {
             !this.store.hasContract(task.id)) {
             throw new Error(`Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`);
         }
-        if (CONTRACT_REQUIRED_STATUSES.has(nextStatus) &&
-            !this.store.hasContract(task.id)) {
-            throw new Error(`Task ${task.id} must have an attached TaskContract before moving to ${nextStatus}.`);
-        }
         if (task.status === "CONTRACT_READY" &&
             nextStatus === "IMPACT_APPROVED") {
             if (!task.impactMap) {
@@ -69,7 +65,6 @@ export class WorkflowGuard {
                 throw new Error(`Task ${task.id} has an invalid Impact Map: ${message}`);
             }
         }
-        return this.store.transition(task.id, nextStatus, reason);
         return this.store.transition(task.id, nextStatus, reason);
     }
 }
