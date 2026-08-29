@@ -1,6 +1,7 @@
 export class OllamaChatClient {
     baseUrl;
     model;
+    timeoutMs;
     constructor(options = {}) {
         this.baseUrl =
             options.baseUrl ??
@@ -10,6 +11,23 @@ export class OllamaChatClient {
             options.model ??
                 process.env.OLLAMA_CHAT_MODEL ??
                 "qwen3-coder:30b";
+        this.timeoutMs = options.timeoutMs;
+    }
+    createAbortSignal() {
+        if (!this.timeoutMs) {
+            return undefined;
+        }
+        return AbortSignal.timeout(this.timeoutMs);
+    }
+    wrapAbortError(error) {
+        if (error instanceof Error &&
+            (error.name === "TimeoutError" ||
+                error.name === "AbortError")) {
+            return new Error(`Ollama request timed out after ${this.timeoutMs}ms.`);
+        }
+        return error instanceof Error
+            ? error
+            : new Error(String(error));
     }
     async chat(messages, onToken) {
         if (messages.length === 0) {
@@ -18,17 +36,24 @@ export class OllamaChatClient {
         if (onToken) {
             return this.chatStream(messages, onToken);
         }
-        const response = await fetch(`${this.baseUrl}/api/chat`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: this.model,
-                messages,
-                stream: false,
-            }),
-        });
+        let response;
+        try {
+            response = await fetch(`${this.baseUrl}/api/chat`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    model: this.model,
+                    messages,
+                    stream: false,
+                }),
+                signal: this.createAbortSignal(),
+            });
+        }
+        catch (error) {
+            throw this.wrapAbortError(error);
+        }
         if (!response.ok) {
             const body = await response.text();
             throw new Error(`Ollama chat request failed: ${response.status} ${response.statusText}: ${body}`);
@@ -45,18 +70,25 @@ export class OllamaChatClient {
         if (messages.length === 0) {
             throw new Error("Cannot send an empty chat");
         }
-        const response = await fetch(`${this.baseUrl}/api/chat`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/x-ndjson",
-            },
-            body: JSON.stringify({
-                model: this.model,
-                messages,
-                stream: true,
-            }),
-        });
+        let response;
+        try {
+            response = await fetch(`${this.baseUrl}/api/chat`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/x-ndjson",
+                },
+                body: JSON.stringify({
+                    model: this.model,
+                    messages,
+                    stream: true,
+                }),
+                signal: this.createAbortSignal(),
+            });
+        }
+        catch (error) {
+            throw this.wrapAbortError(error);
+        }
         if (!response.ok) {
             const body = await response.text();
             throw new Error(`Ollama chat request failed: ${response.status} ${response.statusText}: ${body}`);
@@ -131,18 +163,25 @@ export class OllamaChatClient {
         if (messages.length === 0) {
             throw new Error("Cannot send an empty chat");
         }
-        const response = await fetch(`${this.baseUrl}/api/chat`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: this.model,
-                messages,
-                tools,
-                stream: false,
-            }),
-        });
+        let response;
+        try {
+            response = await fetch(`${this.baseUrl}/api/chat`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    model: this.model,
+                    messages,
+                    tools,
+                    stream: false,
+                }),
+                signal: this.createAbortSignal(),
+            });
+        }
+        catch (error) {
+            throw this.wrapAbortError(error);
+        }
         if (!response.ok) {
             const body = await response.text();
             throw new Error(`Ollama chat request failed: ${response.status} ${response.statusText}: ${body}`);

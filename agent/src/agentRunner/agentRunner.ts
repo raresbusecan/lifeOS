@@ -14,9 +14,12 @@ import {
   type AgentOutput,
 } from "./agentOutput.js";
 
+const DEFAULT_AGENT_TIMEOUT_MS = 5 * 60 * 1000;
+
 export interface RunAgentOptions {
   role: AgentRole;
   input: string;
+  timeoutMs?: number;
 }
 
 function stripCodeFence(
@@ -79,8 +82,9 @@ export async function runAgent(
     );
   }
 
-  const client = new OllamaChatClient({
+    const client = new OllamaChatClient({
     model: definition.model,
+    timeoutMs: options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
   });
 
   const messages: OllamaChatMessage[] = [

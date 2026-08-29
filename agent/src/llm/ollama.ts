@@ -54,6 +54,7 @@ export interface OllamaChatResponse {
 export interface OllamaChatClientOptions {
   baseUrl?: string;
   model?: string;
+  timeoutMs?: number;
 }
 
 export interface OllamaChatWithToolsResult {
@@ -68,6 +69,7 @@ export type OllamaChatTokenHandler = (
 export class OllamaChatClient {
   private readonly baseUrl: string;
   private readonly model: string;
+  private readonly timeoutMs?: number;
 
   constructor(
     options: OllamaChatClientOptions = {},
@@ -81,6 +83,32 @@ export class OllamaChatClient {
       options.model ??
       process.env.OLLAMA_CHAT_MODEL ??
       "qwen3-coder:30b";
+
+    this.timeoutMs = options.timeoutMs;
+  }
+
+  private createAbortSignal(): AbortSignal | undefined {
+    if (!this.timeoutMs) {
+      return undefined;
+    }
+
+    return AbortSignal.timeout(this.timeoutMs);
+  }
+
+  private wrapAbortError(error: unknown): Error {
+    if (
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        error.name === "AbortError")
+    ) {
+      return new Error(
+        `Ollama request timed out after ${this.timeoutMs}ms.`,
+      );
+    }
+
+    return error instanceof Error
+      ? error
+      : new Error(String(error));
   }
 
   async chat(
@@ -100,20 +128,27 @@ export class OllamaChatClient {
       );
     }
 
-    const response = await fetch(
-      `${this.baseUrl}/api/chat`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    let response: Response;
+
+    try {
+      response = await fetch(
+        `${this.baseUrl}/api/chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages,
+            stream: false,
+          }),
+          signal: this.createAbortSignal(),
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          stream: false,
-        }),
-      },
-    );
+      );
+    } catch (error) {
+      throw this.wrapAbortError(error);
+    }
 
     if (!response.ok) {
       const body =
@@ -152,21 +187,28 @@ export class OllamaChatClient {
       );
     }
 
-    const response = await fetch(
-      `${this.baseUrl}/api/chat`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/x-ndjson",
+        let response: Response;
+
+    try {
+      response = await fetch(
+        `${this.baseUrl}/api/chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/x-ndjson",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages,
+            stream: true,
+          }),
+          signal: this.createAbortSignal(),
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          stream: true,
-        }),
-      },
-    );
+      );
+    } catch (error) {
+      throw this.wrapAbortError(error);
+    }
 
     if (!response.ok) {
       const body =
@@ -306,21 +348,28 @@ export class OllamaChatClient {
       );
     }
 
-    const response = await fetch(
-      `${this.baseUrl}/api/chat`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    let response: Response;
+
+    try {
+      response = await fetch(
+        `${this.baseUrl}/api/chat`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages,
+            tools,
+            stream: false,
+          }),
+          signal: this.createAbortSignal(),
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          tools,
-          stream: false,
-        }),
-      },
-    );
+      );
+    } catch (error) {
+      throw this.wrapAbortError(error);
+    }
 
     if (!response.ok) {
       const body =

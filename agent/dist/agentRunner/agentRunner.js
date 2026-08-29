@@ -1,6 +1,7 @@
 import { OllamaChatClient, } from "../llm/ollama.js";
 import { getAgentDefinition, } from "./agentDefinition.js";
 import { assertValidAgentOutput, } from "./agentOutput.js";
+const DEFAULT_AGENT_TIMEOUT_MS = 5 * 60 * 1000;
 function stripCodeFence(content) {
     return content
         .trim()
@@ -35,6 +36,7 @@ export async function runAgent(options) {
     }
     const client = new OllamaChatClient({
         model: definition.model,
+        timeoutMs: options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
     });
     const messages = [
         {
