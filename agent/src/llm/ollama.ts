@@ -1,4 +1,3 @@
-
 export interface OllamaChatMessage {
   role:
     | "system"
@@ -41,7 +40,8 @@ export interface OllamaChatResponse {
   model: string;
   message?: {
     role: string;
-    content: string;
+    content?: string;
+    thinking?: string;
     tool_calls?: OllamaToolCall[];
   };
   done?: boolean;
@@ -92,10 +92,14 @@ export class OllamaChatClient {
       return undefined;
     }
 
-    return AbortSignal.timeout(this.timeoutMs);
+    return AbortSignal.timeout(
+      this.timeoutMs,
+    );
   }
 
-  private wrapAbortError(error: unknown): Error {
+  private wrapAbortError(
+    error: unknown,
+  ): Error {
     if (
       error instanceof Error &&
       (error.name === "TimeoutError" ||
@@ -142,8 +146,10 @@ export class OllamaChatClient {
             model: this.model,
             messages,
             stream: false,
+            think: false,
           }),
-          signal: this.createAbortSignal(),
+          signal:
+            this.createAbortSignal(),
         },
       );
     } catch (error) {
@@ -163,18 +169,31 @@ export class OllamaChatClient {
       (await response.json()) as OllamaChatResponse;
 
     const content =
-      result.message?.content;
+      result.message?.content?.trim();
 
-    if (
-      typeof content !== "string" ||
-      content.length === 0
-    ) {
+    if (content) {
+      return content;
+    }
+
+    const toolCalls =
+      result.message?.tool_calls ?? [];
+
+    if (toolCalls.length > 0) {
+      return "";
+    }
+
+    const thinking =
+      result.message?.thinking?.trim();
+
+    if (thinking) {
       throw new Error(
-        "Ollama returned no chat response",
+        "Ollama returned thinking without a final chat response.",
       );
     }
 
-    return content;
+    throw new Error(
+      "Ollama returned no chat response.",
+    );
   }
 
   async chatStream(
@@ -187,7 +206,7 @@ export class OllamaChatClient {
       );
     }
 
-        let response: Response;
+    let response: Response;
 
     try {
       response = await fetch(
@@ -202,8 +221,10 @@ export class OllamaChatClient {
             model: this.model,
             messages,
             stream: true,
+            think: false,
           }),
-          signal: this.createAbortSignal(),
+          signal:
+            this.createAbortSignal(),
         },
       );
     } catch (error) {
@@ -268,23 +289,15 @@ export class OllamaChatClient {
               trimmed,
             );
 
-          if (
-            typeof chunk.message
-              ?.content !== "string"
-          ) {
-            if (chunk.done) {
-              completed = true;
-            }
-
-            continue;
-          }
-
           const token =
-            chunk.message.content;
+            chunk.message?.content;
 
-          if (token.length > 0) {
+          if (
+            typeof token ===
+              "string" &&
+            token.length > 0
+          ) {
             content += token;
-
             await onToken(token);
           }
 
@@ -307,11 +320,11 @@ export class OllamaChatClient {
           chunk.message?.content;
 
         if (
-          typeof token === "string" &&
+          typeof token ===
+            "string" &&
           token.length > 0
         ) {
           content += token;
-
           await onToken(token);
         }
 
@@ -329,9 +342,9 @@ export class OllamaChatClient {
       );
     }
 
-    if (content.length === 0) {
+    if (content.trim().length === 0) {
       throw new Error(
-        "Ollama returned no chat response",
+        "Ollama returned no chat response.",
       );
     }
 
@@ -363,8 +376,10 @@ export class OllamaChatClient {
             messages,
             tools,
             stream: false,
+            think: false,
           }),
-          signal: this.createAbortSignal(),
+          signal:
+            this.createAbortSignal(),
         },
       );
     } catch (error) {

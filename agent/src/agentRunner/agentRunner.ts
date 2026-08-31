@@ -2,13 +2,10 @@ import {
   OllamaChatClient,
   type OllamaChatMessage,
 } from "../llm/ollama.js";
-
 import {
   getAgentDefinition,
 } from "./agentDefinition.js";
-
 import type { AgentRole } from "./agentRole.js";
-
 import {
   assertValidAgentOutput,
   type AgentOutput,
@@ -33,6 +30,73 @@ function stripCodeFence(
     .trim();
 }
 
+function extractJsonObject(
+  content: string,
+): string {
+  const start = content.indexOf("{");
+
+  if (start === -1) {
+    throw new Error(
+      "Agent response does not contain a JSON object.",
+    );
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (
+    let index = start;
+    index < content.length;
+    index += 1
+  ) {
+    const character = content[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (character === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (character === '"') {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (character === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (character === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return content.slice(
+          start,
+          index + 1,
+        );
+      }
+    }
+  }
+
+  throw new Error(
+    "Agent response contains an incomplete JSON object.",
+  );
+}
+
 function parseAgentOutput(
   content: string,
 ): AgentOutput {
@@ -42,14 +106,21 @@ function parseAgentOutput(
 
   try {
     parsed = JSON.parse(cleaned);
-  } catch (error) {
-    throw new Error(
-      `Agent returned invalid JSON: ${
-        error instanceof Error
-          ? error.message
-          : String(error)
-      }`,
-    );
+  } catch {
+    const extracted =
+      extractJsonObject(cleaned);
+
+    try {
+      parsed = JSON.parse(extracted);
+    } catch (error) {
+      throw new Error(
+        `Agent returned invalid JSON: ${
+          error instanceof Error
+            ? error.message
+            : String(error)
+        }`,
+      );
+    }
   }
 
   const output = parsed as AgentOutput;
@@ -62,7 +133,9 @@ function parseAgentOutput(
 export async function runAgent(
   options: RunAgentOptions,
 ): Promise<AgentOutput> {
-  const definition = getAgentDefinition(options.role);
+  const definition = getAgentDefinition(
+    options.role,
+  );
 
   if (!definition.model) {
     throw new Error(
@@ -70,7 +143,8 @@ export async function runAgent(
     );
   }
 
-  const trimmedInput = options.input.trim();
+  const trimmedInput =
+    options.input.trim();
 
   if (!trimmedInput) {
     throw new Error(
@@ -89,7 +163,8 @@ export async function runAgent(
   const client = new OllamaChatClient({
     model: definition.model,
     timeoutMs:
-      options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
+      options.timeoutMs ??
+      DEFAULT_AGENT_TIMEOUT_MS,
   });
 
   const messages: OllamaChatMessage[] = [
@@ -103,7 +178,13 @@ export async function runAgent(
     },
   ];
 
-  const response = await client.chat(messages);
+  const response =
+  await client.chat(messages);
 
-  return parseAgentOutput(response);
+console.log(
+  `[${options.role}] RAW OLLAMA RESPONSE:`,
+  response,
+);
+
+return parseAgentOutput(response);
 }

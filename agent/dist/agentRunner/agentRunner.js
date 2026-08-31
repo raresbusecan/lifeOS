@@ -10,16 +10,63 @@ function stripCodeFence(content) {
         .replace(/\s*```$/i, "")
         .trim();
 }
+function extractJsonObject(content) {
+    const start = content.indexOf("{");
+    if (start === -1) {
+        throw new Error("Agent response does not contain a JSON object.");
+    }
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < content.length; index += 1) {
+        const character = content[index];
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (character === "\\") {
+                escaped = true;
+                continue;
+            }
+            if (character === '"') {
+                inString = false;
+            }
+            continue;
+        }
+        if (character === '"') {
+            inString = true;
+            continue;
+        }
+        if (character === "{") {
+            depth += 1;
+            continue;
+        }
+        if (character === "}") {
+            depth -= 1;
+            if (depth === 0) {
+                return content.slice(start, index + 1);
+            }
+        }
+    }
+    throw new Error("Agent response contains an incomplete JSON object.");
+}
 function parseAgentOutput(content) {
     const cleaned = stripCodeFence(content);
     let parsed;
     try {
         parsed = JSON.parse(cleaned);
     }
-    catch (error) {
-        throw new Error(`Agent returned invalid JSON: ${error instanceof Error
-            ? error.message
-            : String(error)}`);
+    catch {
+        const extracted = extractJsonObject(cleaned);
+        try {
+            parsed = JSON.parse(extracted);
+        }
+        catch (error) {
+            throw new Error(`Agent returned invalid JSON: ${error instanceof Error
+                ? error.message
+                : String(error)}`);
+        }
     }
     const output = parsed;
     assertValidAgentOutput(output);
@@ -44,7 +91,8 @@ export async function runAgent(options) {
      */
     const client = new OllamaChatClient({
         model: definition.model,
-        timeoutMs: options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
+        timeoutMs: options.timeoutMs ??
+            DEFAULT_AGENT_TIMEOUT_MS,
     });
     const messages = [
         {
@@ -57,5 +105,6 @@ export async function runAgent(options) {
         },
     ];
     const response = await client.chat(messages);
+    console.log(`[${options.role}] RAW OLLAMA RESPONSE:`, response);
     return parseAgentOutput(response);
 }

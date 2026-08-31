@@ -29,14 +29,10 @@ export class OrganizationState {
         return this.tasks.has(taskId);
     }
     recordExecution(execution) {
-        const state = this.initializeTask(execution.department === "COUNCIL"
-            ? execution.inputSummary
-            : "");
-        const taskState = this.findOrCreateExecutionState(execution);
-        taskState.executions.push(execution);
-        taskState.updatedAt =
+        const state = this.initializeTask(execution.taskId);
+        state.executions.push(execution);
+        state.updatedAt =
             new Date().toISOString();
-        void state;
     }
     recordDecision(decision) {
         const state = this.initializeTask(decision.taskId);
@@ -96,21 +92,5 @@ export class OrganizationState {
             createdAt: state.createdAt,
             updatedAt: state.updatedAt,
         };
-    }
-    findOrCreateExecutionState(execution) {
-        /*
-        * DepartmentExecution currently does not carry taskId.
-        * Until that field is added to the shared department contract,
-        * executions cannot be reliably associated with a task.
-        *
-        * The caller should therefore initialize the task state before
-        * recording the execution.
-        */
-        const possibleTaskId = execution.inputSummary;
-        const existing = this.tasks.get(possibleTaskId);
-        if (existing) {
-            return existing;
-        }
-        return this.initializeTask(possibleTaskId);
     }
 }

@@ -47,6 +47,7 @@ export class OllamaChatClient {
                     model: this.model,
                     messages,
                     stream: false,
+                    think: false,
                 }),
                 signal: this.createAbortSignal(),
             });
@@ -59,12 +60,19 @@ export class OllamaChatClient {
             throw new Error(`Ollama chat request failed: ${response.status} ${response.statusText}: ${body}`);
         }
         const result = (await response.json());
-        const content = result.message?.content;
-        if (typeof content !== "string" ||
-            content.length === 0) {
-            throw new Error("Ollama returned no chat response");
+        const content = result.message?.content?.trim();
+        if (content) {
+            return content;
         }
-        return content;
+        const toolCalls = result.message?.tool_calls ?? [];
+        if (toolCalls.length > 0) {
+            return "";
+        }
+        const thinking = result.message?.thinking?.trim();
+        if (thinking) {
+            throw new Error("Ollama returned thinking without a final chat response.");
+        }
+        throw new Error("Ollama returned no chat response.");
     }
     async chatStream(messages, onToken) {
         if (messages.length === 0) {
@@ -82,6 +90,7 @@ export class OllamaChatClient {
                     model: this.model,
                     messages,
                     stream: true,
+                    think: false,
                 }),
                 signal: this.createAbortSignal(),
             });
@@ -117,15 +126,10 @@ export class OllamaChatClient {
                         continue;
                     }
                     const chunk = this.parseStreamChunk(trimmed);
-                    if (typeof chunk.message
-                        ?.content !== "string") {
-                        if (chunk.done) {
-                            completed = true;
-                        }
-                        continue;
-                    }
-                    const token = chunk.message.content;
-                    if (token.length > 0) {
+                    const token = chunk.message?.content;
+                    if (typeof token ===
+                        "string" &&
+                        token.length > 0) {
                         content += token;
                         await onToken(token);
                     }
@@ -138,7 +142,8 @@ export class OllamaChatClient {
             if (remaining.length > 0) {
                 const chunk = this.parseStreamChunk(remaining);
                 const token = chunk.message?.content;
-                if (typeof token === "string" &&
+                if (typeof token ===
+                    "string" &&
                     token.length > 0) {
                     content += token;
                     await onToken(token);
@@ -154,8 +159,8 @@ export class OllamaChatClient {
         if (!completed) {
             throw new Error("Ollama chat stream ended before completion");
         }
-        if (content.length === 0) {
-            throw new Error("Ollama returned no chat response");
+        if (content.trim().length === 0) {
+            throw new Error("Ollama returned no chat response.");
         }
         return content;
     }
@@ -175,6 +180,7 @@ export class OllamaChatClient {
                     messages,
                     tools,
                     stream: false,
+                    think: false,
                 }),
                 signal: this.createAbortSignal(),
             });
