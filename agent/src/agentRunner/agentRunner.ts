@@ -399,7 +399,8 @@ function extractTaskSummary(
     getString(value.title) ??
     getString(value.summary) ??
     getString(value.problem) ??
-    getString(value.currentBehavior)
+    getString(value.currentBehavior) ??
+    getString(value.recommendation)
   );
 }
 
@@ -425,17 +426,46 @@ function extractTaskEvidence(
       "decision",
     ]
   ) {
-    const valueForKey =
-      getString(value[key]);
+    const rawValue =
+      value[key];
 
-    if (valueForKey) {
-      evidence.push(
-        `${key}: ${valueForKey}`,
-      );
+    if (typeof rawValue === "string") {
+      const text = rawValue.trim();
+
+      if (text) {
+        evidence.push(
+          `${key}: ${text}`,
+        );
+      }
+
+      continue;
+    }
+
+    if (isRecord(rawValue)) {
+      for (
+        const [
+          nestedKey,
+          nestedValue,
+        ] of Object.entries(rawValue)
+      ) {
+        if (
+          typeof nestedValue ===
+          "string"
+        ) {
+          const text =
+            nestedValue.trim();
+
+          if (text) {
+            evidence.push(
+              `${key}.${nestedKey}: ${text}`,
+            );
+          }
+        }
+      }
     }
   }
 
-  return evidence;
+  return uniqueStrings(evidence);
 }
 
 function extractCapabilityFindings(
@@ -522,15 +552,22 @@ function extractCapabilityFindings(
 function extractAuditFindings(
   value: unknown,
 ): string[] {
-  if (
-    !isRecord(value)
-  ) {
+  if (!isRecord(value)) {
     return [];
   }
 
   const findings: string[] = [];
 
   const orderedKeys = [
+    "implemented",
+    "partial",
+    "oldOrUnused",
+    "reusable",
+    "mustChange",
+    "missing",
+    "unknown",
+
+    // Legacy / descriptive DCS names
     "whatActuallyWorks",
     "whatIsPartial",
     "whatIsOldOrUnused",
@@ -541,46 +578,32 @@ function extractAuditFindings(
   ];
 
   for (const key of orderedKeys) {
-    const rawValue =
-      value[key];
+    const rawValue = value[key];
 
-    if (
-      typeof rawValue ===
-      "string"
-    ) {
+    if (typeof rawValue === "string") {
       findings.push(
         `${key}: ${rawValue}`,
       );
-
       continue;
     }
 
-    if (
-      Array.isArray(rawValue)
-    ) {
+    if (Array.isArray(rawValue)) {
       for (const item of rawValue) {
-        if (
-          typeof item ===
-          "string"
-        ) {
-          findings.push(
-            `${key}: ${item}`,
-          );
+        if (typeof item === "string") {
+          const trimmed = item.trim();
+
+          if (trimmed) {
+            findings.push(
+              `${key}: ${trimmed}`,
+            );
+          }
         }
       }
     }
   }
 
-  /*
-   * Preserve additional useful string-valued
-   * fields without duplicating known audit fields.
-   */
-  for (
-    const [
-      key,
-      rawValue,
-    ] of Object.entries(value)
-  ) {
+  // Preserve additional useful string-valued fields.
+  for (const [key, rawValue] of Object.entries(value)) {
     if (
       orderedKeys.includes(key) ||
       key === "nextAction"
@@ -588,13 +611,14 @@ function extractAuditFindings(
       continue;
     }
 
-    if (
-      typeof rawValue ===
-      "string"
-    ) {
-      findings.push(
-        `${key}: ${rawValue}`,
-      );
+    if (typeof rawValue === "string") {
+      const trimmed = rawValue.trim();
+
+      if (trimmed) {
+        findings.push(
+          `${key}: ${trimmed}`,
+        );
+      }
     }
   }
 
@@ -692,6 +716,74 @@ function extractDcsNextAction(
     }
   }
 
+  /*
+   * DCS analyst responses commonly use
+   * `nextStep` instead of `nextAction`.
+   */
+  const nextStep =
+    value.nextStep;
+
+  if (isRecord(nextStep)) {
+    for (
+      const [
+        key,
+        rawValue,
+      ] of Object.entries(nextStep)
+    ) {
+      if (
+        typeof rawValue ===
+        "string"
+      ) {
+        const text =
+          rawValue.trim();
+
+        if (text) {
+          return `${key}: ${text}`;
+        }
+      }
+    }
+  }
+
+  if (
+    typeof nextStep ===
+    "string"
+  ) {
+    const text =
+      nextStep.trim();
+
+    if (text) {
+      return text;
+    }
+  }
+
+  /*
+   * Analyst output may expose the next step
+   * through currentImplementation or capability.
+   */
+  const implementation =
+    value.currentImplementation;
+
+  if (isRecord(implementation)) {
+    const entries =
+      Object.entries(
+        implementation,
+      );
+
+    const firstUnimplemented =
+      entries.find(
+        ([, rawValue]) =>
+          typeof rawValue ===
+            "string" &&
+          /not implemented/i.test(
+            rawValue,
+          ),
+      );
+
+    if (firstUnimplemented) {
+      return `Implement ${firstUnimplemented[0]}.`;
+    }
+  }
+
   return DEFAULT_NEXT_ACTION;
 }
 
@@ -732,49 +824,42 @@ function normalizeStatus(
 /* DCS normalization                                                          */
 /* -------------------------------------------------------------------------- */
 
+
 function normalizeDcsOutput(
-  value: Record<
-    string,
-    unknown
-  >,
+  value: Record<string, unknown>,
 ): AgentOutput {
-  const task =
-    value.task;
+  const task = isRecord(value.task)
+    ? value.task
+    : undefined;
 
-  const capabilities =
-    value.capabilities;
+  const capabilities = value.capabilities;
+  const findingsValue = value.findings;
+  const auditSummary = value.auditSummary;
 
-  const findingsValue =
-    value.findings;
-
-  const auditSummary =
-    value.auditSummary;
-
-  /*
-   * Task-level information.
-   */
+  // DCS models have returned several task shapes:
+  // - task.title
+  // - task.problem
+  // - task.summary
+  // - top-level summary/title/problem
   const taskSummary =
-    extractTaskSummary(task);
+    extractTaskSummary(task) ??
+    getString(task?.title) ??
+    getString(task?.summary) ??
+    getString(task?.problem) ??
+    getString(value.summary) ??
+    getString(value.title) ??
+    getString(value.problem);
 
   const taskEvidence =
     extractTaskEvidence(task);
 
-  /*
-   * Capability-level information.
-   */
   const capabilityFindings =
     extractCapabilityFindings(
       capabilities,
     );
 
-  /*
-   * DCS findings may either be an array
-   * or an object containing categorized findings.
-   */
   const rawFindings =
-    asStringArray(
-      findingsValue,
-    );
+    asStringArray(findingsValue);
 
   const structuredFindings =
     isRecord(findingsValue)
@@ -788,105 +873,61 @@ function normalizeDcsOutput(
       auditSummary,
     );
 
-  const findings = uniqueStrings([
-    ...capabilityFindings,
-    ...structuredFindings,
-    ...auditSummaryFindings,
-    ...rawFindings,
-  ]);
+  const findings =
+    uniqueStrings([
+      ...capabilityFindings,
+      ...structuredFindings,
+      ...auditSummaryFindings,
+      ...rawFindings,
+    ]);
 
-  /*
-   * Explicit root-level fields, when present.
-   */
   const explicitFacts =
-    asStringArray(
-      value.facts,
-    );
+    asStringArray(value.facts);
 
   const explicitInferences =
-    asStringArray(
-      value.inferences,
-    );
+    asStringArray(value.inferences);
 
   const explicitProposals =
-    asStringArray(
-      value.proposals,
-    );
+    asStringArray(value.proposals);
 
   const explicitRecommendations =
-    asStringArray(
-      value.recommendations,
-    );
+    asStringArray(value.recommendations);
 
   const explicitRisks =
-    asStringArray(
-      value.risks,
-    );
+    asStringArray(value.risks);
 
   const explicitEvidence =
-    asStringArray(
-      value.evidence,
-    );
+    asStringArray(value.evidence);
 
   const explicitArtifacts =
-    asStringArray(
-      value.artifacts,
-    );
+    asStringArray(value.artifacts);
 
   const explicitFiles =
-    asStringArray(
-      value.files,
-    );
+    asStringArray(value.files);
 
-  /*
-   * nextAction is the most important field for the
-   * DCS orchestration layer.
-   */
   const nextAction =
     extractDcsNextAction(value);
 
-  /*
-   * Facts:
-   *
-   * Preserve explicit facts if the model supplied them.
-   * Otherwise use capability findings because those are
-   * concrete repository-state facts.
-   */
-  const facts = uniqueStrings([
-    ...explicitFacts,
-    ...capabilityFindings,
-  ]);
+  const facts =
+    uniqueStrings([
+      ...explicitFacts,
+      ...capabilityFindings,
+    ]);
 
-  /*
-   * Evidence:
-   *
-   * Prefer explicit evidence, otherwise use task evidence
-   * and normalized findings.
-   */
   const evidence =
     explicitEvidence.length > 0
-      ? uniqueStrings(
-          explicitEvidence,
-        )
+      ? uniqueStrings(explicitEvidence)
       : uniqueStrings([
           ...taskEvidence,
           ...findings,
         ]);
 
-  /*
-   * Proposals:
-   *
-   * Explicit proposals win.
-   * Otherwise recommendations win.
-   * Otherwise the DCS nextAction becomes the proposal.
-   */
   const proposals =
     explicitProposals.length > 0
       ? explicitProposals
       : explicitRecommendations.length > 0
         ? explicitRecommendations
-        : nextAction !==
-            DEFAULT_NEXT_ACTION
+        : nextAction !== DEFAULT_NEXT_ACTION
           ? [nextAction]
           : [];
 
@@ -895,47 +936,30 @@ function normalizeDcsOutput(
       ? explicitRecommendations
       : proposals.length > 0
         ? proposals
-        : nextAction !==
-            DEFAULT_NEXT_ACTION
+        : nextAction !== DEFAULT_NEXT_ACTION
           ? [nextAction]
           : [];
 
-  /*
-   * Artifacts and files are intentionally kept separate.
-   *
-   * An audit artifact is not automatically a source file.
-   */
   const artifacts =
-    uniqueStrings(
-      explicitArtifacts,
-    );
+    uniqueStrings(explicitArtifacts);
 
   const files =
-    uniqueStrings(
-      explicitFiles,
-    );
+    uniqueStrings(explicitFiles);
 
-  /*
-   * Summary priority:
-   *
-   * 1. explicit summary
-   * 2. task title/summary
-   * 3. DCS recommendation
-   * 4. nextAction
-   * 5. generic fallback
-   */
   const summary =
     getString(value.summary) ??
     taskSummary ??
     getString(value.recommendation) ??
-    nextAction ??
-    "DCS task execution completed.";
+    getString(task?.recommendation) ??
+    (
+      findings.length > 0
+        ? findings.join(" ")
+        : nextAction
+    );
 
   const output: AgentOutput = {
     status:
-      normalizeStatus(
-        value.status,
-      ),
+      normalizeStatus(value.status),
 
     summary,
 
@@ -947,9 +971,7 @@ function normalizeDcsOutput(
     proposals,
 
     risks:
-      uniqueStrings(
-        explicitRisks,
-      ),
+      uniqueStrings(explicitRisks),
 
     artifacts,
 
@@ -970,12 +992,11 @@ function normalizeDcsOutput(
       ),
   };
 
-  assertValidAgentOutput(
-    output,
-  );
+  assertValidAgentOutput(output);
 
   return output;
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* Canonical AgentOutput                                                      */
@@ -1201,16 +1222,27 @@ function normalizeAgentOutput(
    * findings/nextAction.
    */
   const hasDcsShape =
-    value.task !== undefined ||
-    value.capabilities !== undefined ||
-    value.auditSummary !== undefined ||
-    value.nextAction !== undefined;
+  value.task !== undefined ||
+  value.capabilities !== undefined ||
+  value.capability !== undefined ||
+  value.auditSummary !== undefined ||
+  value.currentImplementation !== undefined ||
+  value.nextStep !== undefined ||
+  (
+    value.nextAction !== undefined &&
+    !(
+      typeof value.summary === "string" &&
+      Array.isArray(value.facts) &&
+      Array.isArray(value.inferences) &&
+      Array.isArray(value.proposals)
+    )
+  );
 
-  if (hasDcsShape) {
-    return normalizeDcsOutput(
-      value,
-    );
-  }
+if (hasDcsShape) {
+  return normalizeDcsOutput(
+    value,
+  );
+}
 
   /*
    * Canonical AgentOutput.
