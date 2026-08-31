@@ -2,10 +2,48 @@ import { OllamaChatClient, } from "../llm/ollama.js";
 import { getAgentDefinition, } from "./agentDefinition.js";
 import { assertValidAgentOutput, } from "./agentOutput.js";
 const DEFAULT_AGENT_TIMEOUT_MS = 5 * 60 * 1000;
-/**
- * Removes markdown code fences without assuming the response
- * is necessarily valid JSON.
- */
+const DEFAULT_NEXT_ACTION = "Continue task execution.";
+/* -------------------------------------------------------------------------- */
+/* Generic helpers                                                           */
+/* -------------------------------------------------------------------------- */
+function isRecord(value) {
+    return (value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value));
+}
+function getString(value) {
+    return typeof value === "string"
+        ? value.trim()
+        : undefined;
+}
+function asStringArray(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+function uniqueStrings(values) {
+    return [
+        ...new Set(values
+            .map((value) => value.trim())
+            .filter(Boolean)),
+    ];
+}
+function clampConfidence(value, fallback = 0.9) {
+    if (typeof value !== "number") {
+        return fallback;
+    }
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+    return Math.min(1, Math.max(0, value));
+}
+/* -------------------------------------------------------------------------- */
+/* JSON / code-fence handling                                                 */
+/* -------------------------------------------------------------------------- */
 function stripCodeFence(content) {
     return content
         .trim()
@@ -14,13 +52,10 @@ function stripCodeFence(content) {
         .trim();
 }
 /**
- * Extracts the first complete JSON object from arbitrary text.
+ * Extract the first complete JSON object from an Ollama response.
  *
- * Handles:
- * - nested objects
- * - arrays
- * - strings containing braces
- * - escaped quotes
+ * This deliberately understands quoted strings and escaped quotes so that
+ * braces inside JSON strings do not break extraction.
  */
 function extractJsonObject(content) {
     const start = content.indexOf("{");
@@ -63,315 +98,38 @@ function extractJsonObject(content) {
     }
     throw new Error("Agent response contains an incomplete JSON object.");
 }
+/* -------------------------------------------------------------------------- */
+/* Structured-text fallback                                                  */
+/* -------------------------------------------------------------------------- */
 function parseScalar(value) {
     const trimmed = value.trim();
-    if (trimmed.length >= 2 &&
-        ((trimmed.startsWith('"') &&
-            trimmed.endsWith('"')) ||
-            (trimmed.startsWith("'") &&
-                trimmed.endsWith("'")))) {
+    if ((trimmed.startsWith('"') &&
+        trimmed.endsWith('"')) ||
+        (trimmed.startsWith("'") &&
+            trimmed.endsWith("'"))) {
         return trimmed.slice(1, -1);
     }
     return trimmed;
 }
 function parseListValue(lines, startIndex) {
-    const result = [];
+    const values = [];
     let index = startIndex;
     while (index < lines.length) {
-        const raw = lines[index];
-        if (!raw) {
-            index += 1;
-            continue;
-        }
-        const trimmed = raw.trim();
-        if (!trimmed) {
-            index += 1;
-            continue;
-        }
-        if (!trimmed.startsWith("-")) {
+        const line = lines[index];
+        const match = line.match(/^\s*-\s+(.*)$/);
+        if (!match) {
             break;
         }
-        const item = trimmed
-            .replace(/^-\s*/, "")
-            .trim();
-        if (item) {
-            result.push(parseScalar(item));
-        }
+        values.push(parseScalar(match[1]));
         index += 1;
     }
     return {
-        value: result,
+        value: values,
         nextIndex: index,
     };
 }
-/**
- * Normalizes both the current DCS contract and the old compact
- * agent contract into AgentOutput.
- */
-function normalizeAgentOutput(parsed) {
-    if (!parsed ||
-        typeof parsed !== "object") {
-        throw new Error("Agent response must be a JSON object.");
-    }
-    const value = parsed;
-    /*
-     * Canonical DCS output.
-     */
-    if (typeof value.summary === "string" &&
-        Array.isArray(value.facts) &&
-        Array.isArray(value.inferences) &&
-        Array.isArray(value.proposals) &&
-        Array.isArray(value.artifacts) &&
-        Array.isArray(value.evidence) &&
-        typeof value.nextAction === "string") {
-        const facts = value.facts;
-        const proposals = value.proposals;
-        const artifacts = value.artifacts;
-        const risks = Array.isArray(value.risks)
-            ? value.risks
-            : [];
-        const recommendations = proposals.length > 0
-            ? proposals
-            : [value.nextAction];
-        return {
-            status: typeof value.status === "string"
-                ? value.status
-                : "READY",
-            summary: value.summary,
-            facts,
-            inferences: value.inferences,
-            proposals,
-            risks,
-            artifacts,
-            evidence: value.evidence,
-            nextAction: value.nextAction,
-            findings: facts,
-            recommendations,
-            files: artifacts,
-            confidence: typeof value.confidence === "number"
-                ? value.confidence
-                : 1,
-        };
-    }
-    /*
-     * Legacy compact output.
-     */
-    if (typeof value.status === "string" &&
-        Array.isArray(value.findings) &&
-        Array.isArray(value.recommendations) &&
-        Array.isArray(value.files) &&
-        Array.isArray(value.risks) &&
-        typeof value.confidence === "number") {
-        const findings = value.findings;
-        const recommendations = value.recommendations;
-        const files = value.files;
-        return {
-            status: value.status,
-            summary: findings.join(" "),
-            facts: findings,
-            inferences: [],
-            proposals: recommendations,
-            risks: value.risks,
-            artifacts: files,
-            evidence: [],
-            nextAction: recommendations[0] ??
-                "Continue task execution.",
-            findings,
-            recommendations,
-            files,
-            confidence: value.confidence,
-        };
-    }
-    /*
-     * DCS audit/document response.
-     *
-     * Example:
-     *
-     * {
-     *   "id": "DCS-001",
-     *   "task": {
-     *     "title": "...",
-     *     "problem": "...",
-     *     "evidence": {...},
-     *     "currentBehavior": {...},
-     *     "proposedChange": {...},
-     *     "recommendation": {...},
-     *     "decision": {...}
-     *   },
-     *   "nextAction": "..."
-     * }
-     */
-    if (value.task &&
-        typeof value.task === "object") {
-        const task = value.task;
-        const nextAction = typeof value.nextAction === "string"
-            ? value.nextAction
-            : typeof task.nextAction === "string"
-                ? task.nextAction
-                : "Continue task execution.";
-        const summary = typeof task.title === "string"
-            ? task.title
-            : typeof task.proposedChange === "string"
-                ? task.proposedChange
-                : typeof task.recommendation === "string"
-                    ? task.recommendation
-                    : "DCS task audit completed.";
-        const facts = [];
-        const evidence = [];
-        const artifacts = [];
-        const risks = [];
-        /*
-         * Problem.
-         */
-        if (typeof task.problem === "string") {
-            facts.push(`Problem: ${task.problem}`);
-        }
-        /*
-         * Evidence may be either:
-         *
-         * string
-         *
-         * or:
-         *
-         * {
-         *   scanner: "...",
-         *   hashing: "..."
-         * }
-         */
-        if (typeof task.evidence === "string") {
-            evidence.push(task.evidence);
-        }
-        else if (task.evidence &&
-            typeof task.evidence === "object") {
-            const taskEvidence = task.evidence;
-            for (const [capability, value] of Object.entries(taskEvidence)) {
-                evidence.push(`${capability}: ${String(value)}`);
-            }
-        }
-        /*
-         * Current behavior is the most important
-         * part of DCS-001.
-         */
-        if (task.currentBehavior &&
-            typeof task.currentBehavior === "object") {
-            const currentBehavior = task.currentBehavior;
-            for (const [capability, classification] of Object.entries(currentBehavior)) {
-                facts.push(`${capability}: ${String(classification)}`);
-            }
-        }
-        /*
-         * Proposed change.
-         */
-        if (typeof task.proposedChange === "string") {
-            facts.push(`Proposed change: ${task.proposedChange}`);
-        }
-        else if (task.proposedChange &&
-            typeof task.proposedChange === "object") {
-            const proposedChange = task.proposedChange;
-            for (const [capability, change] of Object.entries(proposedChange)) {
-                facts.push(`Proposed change — ${capability}: ${String(change)}`);
-            }
-        }
-        /*
-         * Recommendation.
-         */
-        if (typeof task.recommendation === "string") {
-            facts.push(`Recommendation: ${task.recommendation}`);
-        }
-        else if (task.recommendation &&
-            typeof task.recommendation === "object") {
-            const recommendation = task.recommendation;
-            for (const [capability, recommendationValue] of Object.entries(recommendation)) {
-                facts.push(`Recommendation — ${capability}: ${String(recommendationValue)}`);
-            }
-        }
-        /*
-         * Risk.
-         */
-        if (typeof task.risk === "string") {
-            risks.push(task.risk);
-        }
-        else if (task.risk &&
-            typeof task.risk === "object") {
-            const risk = task.risk;
-            for (const [capability, riskValue] of Object.entries(risk)) {
-                risks.push(`${capability}: ${String(riskValue)}`);
-            }
-        }
-        /*
-         * Decision.
-         */
-        if (typeof task.decision === "string") {
-            facts.push(`Decision: ${task.decision}`);
-        }
-        else if (task.decision &&
-            typeof task.decision === "object") {
-            const decision = task.decision;
-            for (const [capability, decisionValue] of Object.entries(decision)) {
-                facts.push(`Decision — ${capability}: ${String(decisionValue)}`);
-            }
-        }
-        /*
-         * Alternatives.
-         */
-        if (task.alternatives &&
-            typeof task.alternatives === "object") {
-            const alternatives = task.alternatives;
-            for (const [capability, alternative] of Object.entries(alternatives)) {
-                facts.push(`Alternative — ${capability}: ${String(alternative)}`);
-            }
-        }
-        /*
-         * Impact.
-         */
-        if (task.impact &&
-            typeof task.impact === "object") {
-            const impact = task.impact;
-            for (const [capability, impactValue] of Object.entries(impact)) {
-                facts.push(`Impact — ${capability}: ${String(impactValue)}`);
-            }
-        }
-        /*
-         * Reversibility.
-         */
-        if (task.reversibility &&
-            typeof task.reversibility === "object") {
-            const reversibility = task.reversibility;
-            for (const [capability, reversibilityValue] of Object.entries(reversibility)) {
-                facts.push(`Reversibility — ${capability}: ${String(reversibilityValue)}`);
-            }
-        }
-        /*
-         * Artifacts from task response.
-         */
-        if (Array.isArray(task.artifacts)) {
-            artifacts.push(...task.artifacts);
-        }
-        const recommendations = [nextAction];
-        return {
-            status: "READY",
-            summary,
-            facts,
-            inferences: [],
-            proposals: recommendations,
-            risks,
-            artifacts,
-            evidence,
-            nextAction,
-            findings: facts,
-            recommendations,
-            files: artifacts,
-            confidence: typeof value.confidence === "number"
-                ? value.confidence
-                : 0.9,
-        };
-    }
-    throw new Error("Agent response does not match the DCS agent-result contract.");
-}
 function parseStructuredText(content) {
-    const lines = content
-        .replace(/^```(?:text|yaml|yml)?\s*/i, "")
-        .replace(/\s*```$/i, "")
+    const lines = stripCodeFence(content)
         .split(/\r?\n/);
     const scalarValues = {};
     const listValues = {};
@@ -395,8 +153,7 @@ function parseStructuredText(content) {
             if (parsed.value.length > 0) {
                 listValues[key] =
                     parsed.value;
-                index =
-                    parsed.nextIndex;
+                index = parsed.nextIndex;
                 continue;
             }
         }
@@ -404,32 +161,18 @@ function parseStructuredText(content) {
             parseScalar(rawValue);
         index += 1;
     }
-    const statusMap = {
-        READY: "READY",
-        ACTIVE: "READY",
-        COMPLETE: "READY",
-        COMPLETED: "READY",
-        NEEDS_CLARIFICATION: "NEEDS_CLARIFICATION",
-        BLOCKED: "BLOCKED",
-        FAILED: "FAILED",
-    };
     const rawStatus = scalarValues.status ??
-        "FAILED";
-    const status = statusMap[rawStatus] ??
-        "FAILED";
-    const summary = scalarValues.summary ??
-        scalarValues.nextAction ??
-        "Agent returned structured text instead of JSON.";
+        "READY";
+    const status = normalizeStatus(rawStatus);
     const findings = listValues.findings ??
         listValues.evidence ??
         [];
-    const recommendations = listValues.recommendations ??
-        listValues.proposals ??
+    const proposals = listValues.proposals ??
+        listValues.recommendations ??
         (scalarValues.nextAction
             ? [scalarValues.nextAction]
             : []);
     const files = listValues.files ??
-        listValues.artifacts ??
         [];
     const risks = listValues.risks ??
         [];
@@ -437,88 +180,522 @@ function parseStructuredText(content) {
         [];
     const inferences = listValues.inferences ??
         [];
-    const proposals = listValues.proposals ??
-        [];
     const evidence = listValues.evidence ??
         [];
     const artifacts = listValues.artifacts ??
         [];
     const nextAction = scalarValues.nextAction ??
-        recommendations[0] ??
-        "Continue task execution.";
-    return {
+        proposals[0] ??
+        DEFAULT_NEXT_ACTION;
+    const output = {
         status,
-        summary,
+        summary: scalarValues.summary ??
+            nextAction,
         facts,
         inferences,
         proposals,
-        evidence,
+        risks,
         artifacts,
+        evidence,
+        nextAction,
+        findings,
+        recommendations: proposals.length > 0
+            ? proposals
+            : [nextAction],
+        files,
+        confidence: 0.5,
+    };
+    assertValidAgentOutput(output);
+    return output;
+}
+/* -------------------------------------------------------------------------- */
+/* DCS extraction                                                             */
+/* -------------------------------------------------------------------------- */
+function extractTaskSummary(value) {
+    if (!isRecord(value)) {
+        return undefined;
+    }
+    return (getString(value.title) ??
+        getString(value.summary) ??
+        getString(value.problem) ??
+        getString(value.currentBehavior));
+}
+function extractTaskEvidence(value) {
+    if (!isRecord(value)) {
+        return [];
+    }
+    const evidence = [];
+    for (const key of [
+        "problem",
+        "evidence",
+        "currentBehavior",
+        "proposedChange",
+        "impact",
+        "risk",
+        "reversibility",
+        "recommendation",
+        "decision",
+    ]) {
+        const valueForKey = getString(value[key]);
+        if (valueForKey) {
+            evidence.push(`${key}: ${valueForKey}`);
+        }
+    }
+    return evidence;
+}
+function extractCapabilityFindings(value) {
+    if (!isRecord(value)) {
+        return [];
+    }
+    const findings = [];
+    for (const [capability, rawCapability,] of Object.entries(value)) {
+        /*
+         * Compact form:
+         *
+         * "scanner": "IMPLEMENTED"
+         */
+        if (typeof rawCapability ===
+            "string") {
+            findings.push(`${capability}: ${rawCapability}`);
+            continue;
+        }
+        /*
+         * Structured form:
+         *
+         * "scanner": {
+         *   "status": "IMPLEMENTED",
+         *   "reason": "..."
+         * }
+         */
+        if (!isRecord(rawCapability)) {
+            continue;
+        }
+        const status = getString(rawCapability.status);
+        const evidence = getString(rawCapability.evidence) ??
+            getString(rawCapability.reason) ??
+            getString(rawCapability.description);
+        if (status) {
+            findings.push(`${capability}: ${status}${evidence
+                ? ` — ${evidence}`
+                : ""}`);
+            continue;
+        }
+        if (evidence) {
+            findings.push(`${capability}: ${evidence}`);
+        }
+    }
+    return findings;
+}
+function extractAuditFindings(value) {
+    if (!isRecord(value)) {
+        return [];
+    }
+    const findings = [];
+    const orderedKeys = [
+        "whatActuallyWorks",
+        "whatIsPartial",
+        "whatIsOldOrUnused",
+        "whatIsReusable",
+        "whatMustChange",
+        "whatIsMissing",
+        "whatIsUnknown",
+    ];
+    for (const key of orderedKeys) {
+        const rawValue = value[key];
+        if (typeof rawValue ===
+            "string") {
+            findings.push(`${key}: ${rawValue}`);
+            continue;
+        }
+        if (Array.isArray(rawValue)) {
+            for (const item of rawValue) {
+                if (typeof item ===
+                    "string") {
+                    findings.push(`${key}: ${item}`);
+                }
+            }
+        }
+    }
+    /*
+     * Preserve additional useful string-valued
+     * fields without duplicating known audit fields.
+     */
+    for (const [key, rawValue,] of Object.entries(value)) {
+        if (orderedKeys.includes(key) ||
+            key === "nextAction") {
+            continue;
+        }
+        if (typeof rawValue ===
+            "string") {
+            findings.push(`${key}: ${rawValue}`);
+        }
+    }
+    return findings;
+}
+/* -------------------------------------------------------------------------- */
+/* nextAction extraction                                                      */
+/* -------------------------------------------------------------------------- */
+function extractNextAction(value) {
+    if (typeof value ===
+        "string") {
+        const result = value.trim();
+        return result ||
+            DEFAULT_NEXT_ACTION;
+    }
+    if (!isRecord(value)) {
+        return DEFAULT_NEXT_ACTION;
+    }
+    /*
+     * Preferred DCS representation.
+     */
+    for (const key of [
+        "description",
+        "action",
+        "output",
+        "title",
+        "task",
+        "id",
+    ]) {
+        const candidate = getString(value[key]);
+        if (candidate) {
+            return candidate;
+        }
+    }
+    return DEFAULT_NEXT_ACTION;
+}
+function extractDcsNextAction(value) {
+    const direct = extractNextAction(value.nextAction);
+    if (direct !==
+        DEFAULT_NEXT_ACTION) {
+        return direct;
+    }
+    const locations = [
+        value.auditSummary,
+        value.findings,
+        value.task,
+    ];
+    for (const location of locations) {
+        if (!isRecord(location)) {
+            continue;
+        }
+        const nested = extractNextAction(location.nextAction);
+        if (nested !==
+            DEFAULT_NEXT_ACTION) {
+            return nested;
+        }
+    }
+    return DEFAULT_NEXT_ACTION;
+}
+/* -------------------------------------------------------------------------- */
+/* Status                                                                     */
+/* -------------------------------------------------------------------------- */
+function normalizeStatus(value) {
+    const status = typeof value === "string"
+        ? value
+            .trim()
+            .toUpperCase()
+        : "READY";
+    switch (status) {
+        case "NEEDS_CLARIFICATION":
+            return "NEEDS_CLARIFICATION";
+        case "BLOCKED":
+            return "BLOCKED";
+        case "FAILED":
+            return "FAILED";
+        case "ACTIVE":
+        case "COMPLETE":
+        case "COMPLETED":
+        case "READY":
+        default:
+            return "READY";
+    }
+}
+/* -------------------------------------------------------------------------- */
+/* DCS normalization                                                          */
+/* -------------------------------------------------------------------------- */
+function normalizeDcsOutput(value) {
+    const task = value.task;
+    const capabilities = value.capabilities;
+    const findingsValue = value.findings;
+    const auditSummary = value.auditSummary;
+    /*
+     * Task-level information.
+     */
+    const taskSummary = extractTaskSummary(task);
+    const taskEvidence = extractTaskEvidence(task);
+    /*
+     * Capability-level information.
+     */
+    const capabilityFindings = extractCapabilityFindings(capabilities);
+    /*
+     * DCS findings may either be an array
+     * or an object containing categorized findings.
+     */
+    const rawFindings = asStringArray(findingsValue);
+    const structuredFindings = isRecord(findingsValue)
+        ? extractAuditFindings(findingsValue)
+        : [];
+    const auditSummaryFindings = extractAuditFindings(auditSummary);
+    const findings = uniqueStrings([
+        ...capabilityFindings,
+        ...structuredFindings,
+        ...auditSummaryFindings,
+        ...rawFindings,
+    ]);
+    /*
+     * Explicit root-level fields, when present.
+     */
+    const explicitFacts = asStringArray(value.facts);
+    const explicitInferences = asStringArray(value.inferences);
+    const explicitProposals = asStringArray(value.proposals);
+    const explicitRecommendations = asStringArray(value.recommendations);
+    const explicitRisks = asStringArray(value.risks);
+    const explicitEvidence = asStringArray(value.evidence);
+    const explicitArtifacts = asStringArray(value.artifacts);
+    const explicitFiles = asStringArray(value.files);
+    /*
+     * nextAction is the most important field for the
+     * DCS orchestration layer.
+     */
+    const nextAction = extractDcsNextAction(value);
+    /*
+     * Facts:
+     *
+     * Preserve explicit facts if the model supplied them.
+     * Otherwise use capability findings because those are
+     * concrete repository-state facts.
+     */
+    const facts = uniqueStrings([
+        ...explicitFacts,
+        ...capabilityFindings,
+    ]);
+    /*
+     * Evidence:
+     *
+     * Prefer explicit evidence, otherwise use task evidence
+     * and normalized findings.
+     */
+    const evidence = explicitEvidence.length > 0
+        ? uniqueStrings(explicitEvidence)
+        : uniqueStrings([
+            ...taskEvidence,
+            ...findings,
+        ]);
+    /*
+     * Proposals:
+     *
+     * Explicit proposals win.
+     * Otherwise recommendations win.
+     * Otherwise the DCS nextAction becomes the proposal.
+     */
+    const proposals = explicitProposals.length > 0
+        ? explicitProposals
+        : explicitRecommendations.length > 0
+            ? explicitRecommendations
+            : nextAction !==
+                DEFAULT_NEXT_ACTION
+                ? [nextAction]
+                : [];
+    const recommendations = explicitRecommendations.length > 0
+        ? explicitRecommendations
+        : proposals.length > 0
+            ? proposals
+            : nextAction !==
+                DEFAULT_NEXT_ACTION
+                ? [nextAction]
+                : [];
+    /*
+     * Artifacts and files are intentionally kept separate.
+     *
+     * An audit artifact is not automatically a source file.
+     */
+    const artifacts = uniqueStrings(explicitArtifacts);
+    const files = uniqueStrings(explicitFiles);
+    /*
+     * Summary priority:
+     *
+     * 1. explicit summary
+     * 2. task title/summary
+     * 3. DCS recommendation
+     * 4. nextAction
+     * 5. generic fallback
+     */
+    const summary = getString(value.summary) ??
+        taskSummary ??
+        getString(value.recommendation) ??
+        nextAction ??
+        "DCS task execution completed.";
+    const output = {
+        status: normalizeStatus(value.status),
+        summary,
+        facts,
+        inferences: explicitInferences,
+        proposals,
+        risks: uniqueStrings(explicitRisks),
+        artifacts,
+        evidence,
         nextAction,
         findings,
         recommendations,
         files,
-        risks,
-        confidence: 0.5,
+        confidence: clampConfidence(value.confidence, 0.9),
     };
+    assertValidAgentOutput(output);
+    return output;
 }
-/**
- * Parses all known Ollama response formats.
- */
-function parseAgentOutput(content) {
-    const original = content.trim();
-    if (!original) {
-        throw new Error("Agent returned an empty response.");
+/* -------------------------------------------------------------------------- */
+/* Canonical AgentOutput                                                      */
+/* -------------------------------------------------------------------------- */
+function normalizeCanonicalOutput(value) {
+    const facts = asStringArray(value.facts);
+    const inferences = asStringArray(value.inferences);
+    const proposals = asStringArray(value.proposals);
+    const risks = asStringArray(value.risks);
+    const artifacts = asStringArray(value.artifacts);
+    const evidence = asStringArray(value.evidence);
+    const findings = asStringArray(value.findings);
+    const recommendations = asStringArray(value.recommendations);
+    const files = asStringArray(value.files);
+    const nextAction = getString(value.nextAction) ??
+        recommendations[0] ??
+        proposals[0] ??
+        DEFAULT_NEXT_ACTION;
+    const output = {
+        status: normalizeStatus(value.status),
+        summary: getString(value.summary) ??
+            nextAction,
+        facts,
+        inferences,
+        proposals,
+        risks,
+        artifacts,
+        evidence,
+        nextAction,
+        findings: findings.length > 0
+            ? findings
+            : facts,
+        recommendations: recommendations.length > 0
+            ? recommendations
+            : proposals.length > 0
+                ? proposals
+                : [nextAction],
+        files,
+        confidence: clampConfidence(value.confidence, 1),
+    };
+    assertValidAgentOutput(output);
+    return output;
+}
+/* -------------------------------------------------------------------------- */
+/* Legacy output                                                              */
+/* -------------------------------------------------------------------------- */
+function normalizeLegacyOutput(value) {
+    const findings = asStringArray(value.findings);
+    const recommendations = asStringArray(value.recommendations);
+    const files = asStringArray(value.files);
+    const risks = asStringArray(value.risks);
+    const nextAction = recommendations[0] ??
+        DEFAULT_NEXT_ACTION;
+    const output = {
+        status: normalizeStatus(value.status),
+        summary: getString(value.summary) ??
+            findings.join(" ") ??
+            nextAction,
+        facts: findings,
+        inferences: [],
+        proposals: recommendations,
+        risks,
+        artifacts: files,
+        evidence: [],
+        nextAction,
+        findings,
+        recommendations,
+        files,
+        confidence: clampConfidence(value.confidence, 0.5),
+    };
+    assertValidAgentOutput(output);
+    return output;
+}
+/* -------------------------------------------------------------------------- */
+/* Main normalization                                                         */
+/* -------------------------------------------------------------------------- */
+function normalizeAgentOutput(parsed) {
+    if (!isRecord(parsed)) {
+        throw new Error("Agent response must be a JSON object.");
+    }
+    const value = parsed;
+    /*
+     * DCS-native response.
+     *
+     * Do this BEFORE canonical/legacy detection because
+     * DCS responses may contain only task/capabilities/
+     * findings/nextAction.
+     */
+    const hasDcsShape = value.task !== undefined ||
+        value.capabilities !== undefined ||
+        value.auditSummary !== undefined ||
+        value.nextAction !== undefined;
+    if (hasDcsShape) {
+        return normalizeDcsOutput(value);
     }
     /*
-     * Attempt 1:
-     * Strip markdown fence and parse directly.
+     * Canonical AgentOutput.
      */
-    const cleaned = stripCodeFence(original);
+    const hasCanonicalShape = typeof value.summary ===
+        "string" &&
+        Array.isArray(value.facts) &&
+        Array.isArray(value.inferences) &&
+        Array.isArray(value.proposals) &&
+        Array.isArray(value.artifacts) &&
+        Array.isArray(value.evidence);
+    if (hasCanonicalShape) {
+        return normalizeCanonicalOutput(value);
+    }
+    /*
+     * Legacy compact contract.
+     */
+    const hasLegacyShape = typeof value.status ===
+        "string" &&
+        Array.isArray(value.findings) &&
+        Array.isArray(value.recommendations) &&
+        Array.isArray(value.files) &&
+        Array.isArray(value.risks);
+    if (hasLegacyShape) {
+        return normalizeLegacyOutput(value);
+    }
+    throw new Error("Agent response does not match the DCS agent-result contract.");
+}
+/* -------------------------------------------------------------------------- */
+/* Parser                                                                     */
+/* -------------------------------------------------------------------------- */
+function parseAgentOutput(content) {
+    const cleaned = stripCodeFence(content);
+    /*
+     * First attempt: response is pure JSON.
+     */
     try {
         const parsed = JSON.parse(cleaned);
-        const normalized = normalizeAgentOutput(parsed);
-        assertValidAgentOutput(normalized);
-        return normalized;
+        return normalizeAgentOutput(parsed);
     }
     catch {
-        // Continue with extraction.
-    }
-    /*
-     * Attempt 2:
-     * Extract JSON object from arbitrary surrounding text.
-     *
-     * This is important for responses such as:
-     *
-     * ```json
-     * { ... }
-     * ```
-     */
-    try {
-        const extracted = extractJsonObject(original);
-        const parsed = JSON.parse(extracted);
-        const normalized = normalizeAgentOutput(parsed);
-        assertValidAgentOutput(normalized);
-        return normalized;
-    }
-    catch {
-        // Continue with structured text.
-    }
-    /*
-     * Attempt 3:
-     * Structured text / YAML-like fallback.
-     */
-    try {
-        const structured = parseStructuredText(original);
-        assertValidAgentOutput(structured);
-        return structured;
-    }
-    catch (error) {
-        throw new Error(`Unable to parse agent response. ${error instanceof Error
-            ? error.message
-            : String(error)}`);
+        /*
+         * Second attempt: JSON embedded in prose/code.
+         */
+        try {
+            const extracted = extractJsonObject(cleaned);
+            const parsed = JSON.parse(extracted);
+            return normalizeAgentOutput(parsed);
+        }
+        catch {
+            /*
+             * Last resort: structured text parser.
+             */
+            return parseStructuredText(content);
+        }
     }
 }
+/* -------------------------------------------------------------------------- */
+/* Agent execution                                                            */
+/* -------------------------------------------------------------------------- */
 export async function runAgent(options) {
     const definition = getAgentDefinition(options.role);
     if (!definition.model) {
