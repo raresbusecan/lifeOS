@@ -1,14 +1,19 @@
+
 import {
   OllamaChatClient,
   type OllamaChatMessage,
 } from "../llm/ollama.js";
+
 import {
   getAgentDefinition,
 } from "./agentDefinition.js";
+
 import type { AgentRole } from "./agentRole.js";
+
 import {
   assertValidAgentOutput,
   type AgentOutput,
+  type AgentOutputStatus,
 } from "./agentOutput.js";
 
 const DEFAULT_AGENT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -19,20 +24,28 @@ export interface RunAgentOptions {
   timeoutMs?: number;
 }
 
-function stripCodeFence(
-  content: string,
-): string {
+/**
+ * Removes markdown code fences without assuming the response
+ * is necessarily valid JSON.
+ */
+function stripCodeFence(content: string): string {
   return content
     .trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
+    .replace(/^```(?:json|text|yaml|yml)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 }
 
-function extractJsonObject(
-  content: string,
-): string {
+/**
+ * Extracts the first complete JSON object from arbitrary text.
+ *
+ * Handles:
+ * - nested objects
+ * - arrays
+ * - strings containing braces
+ * - escaped quotes
+ */
+function extractJsonObject(content: string): string {
   const start = content.indexOf("{");
 
   if (start === -1) {
@@ -84,10 +97,7 @@ function extractJsonObject(
       depth -= 1;
 
       if (depth === 0) {
-        return content.slice(
-          start,
-          index + 1,
-        );
+        return content.slice(start, index + 1);
       }
     }
   }
@@ -97,45 +107,852 @@ function extractJsonObject(
   );
 }
 
+function parseScalar(value: string): string {
+  const trimmed = value.trim();
+
+  if (
+    trimmed.length >= 2 &&
+    (
+      (
+        trimmed.startsWith('"') &&
+        trimmed.endsWith('"')
+      ) ||
+      (
+        trimmed.startsWith("'") &&
+        trimmed.endsWith("'")
+      )
+    )
+  ) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+}
+
+function parseListValue(
+  lines: string[],
+  startIndex: number,
+): {
+  value: string[];
+  nextIndex: number;
+} {
+  const result: string[] = [];
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const raw = lines[index];
+
+    if (!raw) {
+      index += 1;
+      continue;
+    }
+
+    const trimmed = raw.trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (!trimmed.startsWith("-")) {
+      break;
+    }
+
+    const item = trimmed
+      .replace(/^-\s*/, "")
+      .trim();
+
+    if (item) {
+      result.push(parseScalar(item));
+    }
+
+    index += 1;
+  }
+
+  return {
+    value: result,
+    nextIndex: index,
+  };
+}
+
+/**
+ * Normalizes both the current DCS contract and the old compact
+ * agent contract into AgentOutput.
+ */
+
+function normalizeAgentOutput(
+  parsed: unknown,
+): AgentOutput {
+  if (
+    !parsed ||
+    typeof parsed !== "object"
+  ) {
+    throw new Error(
+      "Agent response must be a JSON object.",
+    );
+  }
+
+  const value =
+    parsed as Record<string, unknown>;
+
+  /*
+   * Canonical DCS output.
+   */
+  if (
+    typeof value.summary === "string" &&
+    Array.isArray(value.facts) &&
+    Array.isArray(value.inferences) &&
+    Array.isArray(value.proposals) &&
+    Array.isArray(value.artifacts) &&
+    Array.isArray(value.evidence) &&
+    typeof value.nextAction === "string"
+  ) {
+    const facts =
+      value.facts as string[];
+
+    const proposals =
+      value.proposals as string[];
+
+    const artifacts =
+      value.artifacts as string[];
+
+    const risks =
+      Array.isArray(value.risks)
+        ? value.risks as string[]
+        : [];
+
+    const recommendations =
+      proposals.length > 0
+        ? proposals
+        : [value.nextAction];
+
+    return {
+      status:
+        typeof value.status === "string"
+          ? value.status as AgentOutputStatus
+          : "READY",
+
+      summary:
+        value.summary,
+
+      facts,
+
+      inferences:
+        value.inferences as string[],
+
+      proposals,
+
+      risks,
+
+      artifacts,
+
+      evidence:
+        value.evidence as string[],
+
+      nextAction:
+        value.nextAction,
+
+      findings:
+        facts,
+
+      recommendations,
+
+      files:
+        artifacts,
+
+      confidence:
+        typeof value.confidence === "number"
+          ? value.confidence
+          : 1,
+    };
+  }
+
+  /*
+   * Legacy compact output.
+   */
+  if (
+    typeof value.status === "string" &&
+    Array.isArray(value.findings) &&
+    Array.isArray(value.recommendations) &&
+    Array.isArray(value.files) &&
+    Array.isArray(value.risks) &&
+    typeof value.confidence === "number"
+  ) {
+    const findings =
+      value.findings as string[];
+
+    const recommendations =
+      value.recommendations as string[];
+
+    const files =
+      value.files as string[];
+
+    return {
+      status:
+        value.status as AgentOutputStatus,
+
+      summary:
+        findings.join(" "),
+
+      facts:
+        findings,
+
+      inferences:
+        [],
+
+      proposals:
+        recommendations,
+
+      risks:
+        value.risks as string[],
+
+      artifacts:
+        files,
+
+      evidence:
+        [],
+
+      nextAction:
+        recommendations[0] ??
+        "Continue task execution.",
+
+      findings,
+
+      recommendations,
+
+      files,
+
+      confidence:
+        value.confidence as number,
+    };
+  }
+
+  /*
+   * DCS audit/document response.
+   *
+   * Example:
+   *
+   * {
+   *   "id": "DCS-001",
+   *   "task": {
+   *     "title": "...",
+   *     "problem": "...",
+   *     "evidence": {...},
+   *     "currentBehavior": {...},
+   *     "proposedChange": {...},
+   *     "recommendation": {...},
+   *     "decision": {...}
+   *   },
+   *   "nextAction": "..."
+   * }
+   */
+  if (
+    value.task &&
+    typeof value.task === "object"
+  ) {
+    const task =
+      value.task as Record<string, unknown>;
+
+    const nextAction =
+      typeof value.nextAction === "string"
+        ? value.nextAction
+        : typeof task.nextAction === "string"
+          ? task.nextAction
+          : "Continue task execution.";
+
+    const summary =
+      typeof task.title === "string"
+        ? task.title
+        : typeof task.proposedChange === "string"
+          ? task.proposedChange
+          : typeof task.recommendation === "string"
+            ? task.recommendation
+            : "DCS task audit completed.";
+
+    const facts: string[] = [];
+    const evidence: string[] = [];
+    const artifacts: string[] = [];
+    const risks: string[] = [];
+
+    /*
+     * Problem.
+     */
+    if (
+      typeof task.problem === "string"
+    ) {
+      facts.push(
+        `Problem: ${task.problem}`,
+      );
+    }
+
+    /*
+     * Evidence may be either:
+     *
+     * string
+     *
+     * or:
+     *
+     * {
+     *   scanner: "...",
+     *   hashing: "..."
+     * }
+     */
+    if (
+      typeof task.evidence === "string"
+    ) {
+      evidence.push(
+        task.evidence,
+      );
+    } else if (
+      task.evidence &&
+      typeof task.evidence === "object"
+    ) {
+      const taskEvidence =
+        task.evidence as Record<string, unknown>;
+
+      for (
+        const [capability, value] of Object.entries(
+          taskEvidence,
+        )
+      ) {
+        evidence.push(
+          `${capability}: ${String(value)}`,
+        );
+      }
+    }
+
+    /*
+     * Current behavior is the most important
+     * part of DCS-001.
+     */
+    if (
+      task.currentBehavior &&
+      typeof task.currentBehavior === "object"
+    ) {
+      const currentBehavior =
+        task.currentBehavior as Record<string, unknown>;
+
+      for (
+        const [capability, classification] of Object.entries(
+          currentBehavior,
+        )
+      ) {
+        facts.push(
+          `${capability}: ${String(classification)}`,
+        );
+      }
+    }
+
+    /*
+     * Proposed change.
+     */
+    if (
+      typeof task.proposedChange === "string"
+    ) {
+      facts.push(
+        `Proposed change: ${task.proposedChange}`,
+      );
+    } else if (
+      task.proposedChange &&
+      typeof task.proposedChange === "object"
+    ) {
+      const proposedChange =
+        task.proposedChange as Record<string, unknown>;
+
+      for (
+        const [capability, change] of Object.entries(
+          proposedChange,
+        )
+      ) {
+        facts.push(
+          `Proposed change — ${capability}: ${String(change)}`,
+        );
+      }
+    }
+
+    /*
+     * Recommendation.
+     */
+    if (
+      typeof task.recommendation === "string"
+    ) {
+      facts.push(
+        `Recommendation: ${task.recommendation}`,
+      );
+    } else if (
+      task.recommendation &&
+      typeof task.recommendation === "object"
+    ) {
+      const recommendation =
+        task.recommendation as Record<string, unknown>;
+
+      for (
+        const [capability, recommendationValue] of Object.entries(
+          recommendation,
+        )
+      ) {
+        facts.push(
+          `Recommendation — ${capability}: ${String(
+            recommendationValue,
+          )}`,
+        );
+      }
+    }
+
+    /*
+     * Risk.
+     */
+    if (
+      typeof task.risk === "string"
+    ) {
+      risks.push(
+        task.risk,
+      );
+    } else if (
+      task.risk &&
+      typeof task.risk === "object"
+    ) {
+      const risk =
+        task.risk as Record<string, unknown>;
+
+      for (
+        const [capability, riskValue] of Object.entries(
+          risk,
+        )
+      ) {
+        risks.push(
+          `${capability}: ${String(riskValue)}`,
+        );
+      }
+    }
+
+    /*
+     * Decision.
+     */
+    if (
+      typeof task.decision === "string"
+    ) {
+      facts.push(
+        `Decision: ${task.decision}`,
+      );
+    } else if (
+      task.decision &&
+      typeof task.decision === "object"
+    ) {
+      const decision =
+        task.decision as Record<string, unknown>;
+
+      for (
+        const [capability, decisionValue] of Object.entries(
+          decision,
+        )
+      ) {
+        facts.push(
+          `Decision — ${capability}: ${String(
+            decisionValue,
+          )}`,
+        );
+      }
+    }
+
+    /*
+     * Alternatives.
+     */
+    if (
+      task.alternatives &&
+      typeof task.alternatives === "object"
+    ) {
+      const alternatives =
+        task.alternatives as Record<string, unknown>;
+
+      for (
+        const [capability, alternative] of Object.entries(
+          alternatives,
+        )
+      ) {
+        facts.push(
+          `Alternative — ${capability}: ${String(
+            alternative,
+          )}`,
+        );
+      }
+    }
+
+    /*
+     * Impact.
+     */
+    if (
+      task.impact &&
+      typeof task.impact === "object"
+    ) {
+      const impact =
+        task.impact as Record<string, unknown>;
+
+      for (
+        const [capability, impactValue] of Object.entries(
+          impact,
+        )
+      ) {
+        facts.push(
+          `Impact — ${capability}: ${String(
+            impactValue,
+          )}`,
+        );
+      }
+    }
+
+    /*
+     * Reversibility.
+     */
+    if (
+      task.reversibility &&
+      typeof task.reversibility === "object"
+    ) {
+      const reversibility =
+        task.reversibility as Record<string, unknown>;
+
+      for (
+        const [capability, reversibilityValue] of Object.entries(
+          reversibility,
+        )
+      ) {
+        facts.push(
+          `Reversibility — ${capability}: ${String(
+            reversibilityValue,
+          )}`,
+        );
+      }
+    }
+
+    /*
+     * Artifacts from task response.
+     */
+    if (
+      Array.isArray(task.artifacts)
+    ) {
+      artifacts.push(
+        ...(task.artifacts as string[]),
+      );
+    }
+
+    const recommendations =
+      [nextAction];
+
+    return {
+      status: "READY",
+
+      summary,
+
+      facts,
+
+      inferences:
+        [],
+
+      proposals:
+        recommendations,
+
+      risks,
+
+      artifacts,
+
+      evidence,
+
+      nextAction,
+
+      findings:
+        facts,
+
+      recommendations,
+
+      files:
+        artifacts,
+
+      confidence:
+        typeof value.confidence === "number"
+          ? value.confidence
+          : 0.9,
+    };
+  }
+
+  throw new Error(
+    "Agent response does not match the DCS agent-result contract.",
+  );
+}
+
+
+
+function parseStructuredText(
+  content: string,
+): AgentOutput {
+  const lines = content
+    .replace(
+      /^```(?:text|yaml|yml)?\s*/i,
+      "",
+    )
+    .replace(
+      /\s*```$/i,
+      "",
+    )
+    .split(/\r?\n/);
+
+  const scalarValues:
+    Record<string, string> = {};
+
+  const listValues:
+    Record<string, string[]> = {};
+
+  let index = 0;
+
+  while (index < lines.length) {
+    const line =
+      lines[index].trim();
+
+    if (
+      !line ||
+      line === "{" ||
+      line === "}"
+    ) {
+      index += 1;
+      continue;
+    }
+
+    const match =
+      line.match(
+        /^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/,
+      );
+
+    if (!match) {
+      index += 1;
+      continue;
+    }
+
+    const [, key, rawValue] =
+      match;
+
+    if (rawValue === "") {
+      const parsed =
+        parseListValue(
+          lines,
+          index + 1,
+        );
+
+      if (parsed.value.length > 0) {
+        listValues[key] =
+          parsed.value;
+
+        index =
+          parsed.nextIndex;
+
+        continue;
+      }
+    }
+
+    scalarValues[key] =
+      parseScalar(rawValue);
+
+    index += 1;
+  }
+
+  const statusMap:
+    Record<string, AgentOutputStatus> = {
+      READY: "READY",
+      ACTIVE: "READY",
+      COMPLETE: "READY",
+      COMPLETED: "READY",
+      NEEDS_CLARIFICATION:
+        "NEEDS_CLARIFICATION",
+      BLOCKED: "BLOCKED",
+      FAILED: "FAILED",
+    };
+
+  const rawStatus =
+    scalarValues.status ??
+    "FAILED";
+
+  const status =
+    statusMap[rawStatus] ??
+    "FAILED";
+
+  const summary =
+    scalarValues.summary ??
+    scalarValues.nextAction ??
+    "Agent returned structured text instead of JSON.";
+
+  const findings =
+    listValues.findings ??
+    listValues.evidence ??
+    [];
+
+  const recommendations =
+    listValues.recommendations ??
+    listValues.proposals ??
+    (
+      scalarValues.nextAction
+        ? [scalarValues.nextAction]
+        : []
+    );
+
+  const files =
+    listValues.files ??
+    listValues.artifacts ??
+    [];
+
+  const risks =
+    listValues.risks ??
+    [];
+
+  const facts =
+    listValues.facts ??
+    [];
+
+  const inferences =
+    listValues.inferences ??
+    [];
+
+  const proposals =
+    listValues.proposals ??
+    [];
+
+  const evidence =
+    listValues.evidence ??
+    [];
+
+  const artifacts =
+    listValues.artifacts ??
+    [];
+
+  const nextAction =
+    scalarValues.nextAction ??
+    recommendations[0] ??
+    "Continue task execution.";
+
+  return {
+    status,
+
+    summary,
+
+    facts,
+
+    inferences,
+
+    proposals,
+
+    evidence,
+
+    artifacts,
+
+    nextAction,
+
+    findings,
+
+    recommendations,
+
+    files,
+
+    risks,
+
+    confidence: 0.5,
+  };
+}
+
+/**
+ * Parses all known Ollama response formats.
+ */
 function parseAgentOutput(
   content: string,
 ): AgentOutput {
-  const cleaned = stripCodeFence(content);
+  const original =
+    content.trim();
 
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    const extracted =
-      extractJsonObject(cleaned);
-
-    try {
-      parsed = JSON.parse(extracted);
-    } catch (error) {
-      throw new Error(
-        `Agent returned invalid JSON: ${
-          error instanceof Error
-            ? error.message
-            : String(error)
-        }`,
-      );
-    }
+  if (!original) {
+    throw new Error(
+      "Agent returned an empty response.",
+    );
   }
 
-  const output = parsed as AgentOutput;
+  /*
+   * Attempt 1:
+   * Strip markdown fence and parse directly.
+   */
+  const cleaned =
+    stripCodeFence(original);
 
-  assertValidAgentOutput(output);
+  try {
+    const parsed =
+      JSON.parse(cleaned);
 
-  return output;
+    const normalized =
+      normalizeAgentOutput(parsed);
+
+    assertValidAgentOutput(
+      normalized,
+    );
+
+    return normalized;
+  } catch {
+    // Continue with extraction.
+  }
+
+  /*
+   * Attempt 2:
+   * Extract JSON object from arbitrary surrounding text.
+   *
+   * This is important for responses such as:
+   *
+   * ```json
+   * { ... }
+   * ```
+   */
+  try {
+    const extracted =
+      extractJsonObject(original);
+
+    const parsed =
+      JSON.parse(extracted);
+
+    const normalized =
+      normalizeAgentOutput(parsed);
+
+    assertValidAgentOutput(
+      normalized,
+    );
+
+    return normalized;
+  } catch {
+    // Continue with structured text.
+  }
+
+  /*
+   * Attempt 3:
+   * Structured text / YAML-like fallback.
+   */
+  try {
+    const structured =
+      parseStructuredText(original);
+
+    assertValidAgentOutput(
+      structured,
+    );
+
+    return structured;
+  } catch (error) {
+    throw new Error(
+      `Unable to parse agent response. ${
+        error instanceof Error
+          ? error.message
+          : String(error)
+      }`,
+    );
+  }
 }
 
 export async function runAgent(
   options: RunAgentOptions,
 ): Promise<AgentOutput> {
-  const definition = getAgentDefinition(
-    options.role,
-  );
+  const definition =
+    getAgentDefinition(
+      options.role,
+    );
 
   if (!definition.model) {
     throw new Error(
@@ -152,39 +969,42 @@ export async function runAgent(
     );
   }
 
-  /*
-   * Local-only execution.
-   *
-   * The model is selected by AgentDefinition.
-   * runAgent awaits the complete response before returning,
-   * therefore agents invoked sequentially by the workflow
-   * never run concurrently through this function.
-   */
-  const client = new OllamaChatClient({
-    model: definition.model,
-    timeoutMs:
-      options.timeoutMs ??
-      DEFAULT_AGENT_TIMEOUT_MS,
-  });
+  const client =
+    new OllamaChatClient({
+      model:
+        definition.model,
 
-  const messages: OllamaChatMessage[] = [
-    {
-      role: "system",
-      content: definition.systemPrompt,
-    },
-    {
-      role: "user",
-      content: trimmedInput,
-    },
-  ];
+      timeoutMs:
+        options.timeoutMs ??
+        DEFAULT_AGENT_TIMEOUT_MS,
+    });
+
+  const messages:
+    OllamaChatMessage[] = [
+      {
+        role: "system",
+        content:
+          definition.systemPrompt,
+      },
+      {
+        role: "user",
+        content:
+          trimmedInput,
+      },
+    ];
 
   const response =
-  await client.chat(messages);
+    await client.chat(
+      messages,
+    );
 
-console.log(
-  `[${options.role}] RAW OLLAMA RESPONSE:`,
-  response,
-);
+  console.log(
+    `[${options.role}] RAW OLLAMA RESPONSE:`,
+    response,
+  );
 
-return parseAgentOutput(response);
+  return parseAgentOutput(
+    response,
+  );
 }
+

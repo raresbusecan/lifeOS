@@ -4,6 +4,7 @@ import { formatIndexResult, indexRepository, } from "./indexer/fileIndex.js";
 import { formatContentIndexResult, indexContent, } from "./indexer/contentIndex.js";
 import { formatSemanticIndexResult, indexSemantic, } from "./indexer/semanticIndex.js";
 import { startAgentCli, } from "./cli.js";
+import { runDcsRuntime } from "./runtime/dcsRuntime.js";
 const repositoryRoot = resolve(process.cwd(), "..");
 const stateFile = resolve(repositoryRoot, "PROJECT_STATE.md");
 const instructionsFile = resolve(repositoryRoot, "AGENTS.md");
@@ -29,14 +30,26 @@ const fileIndex = await indexRepository(repositoryRoot);
 console.log(formatIndexResult(fileIndex));
 const contentIndex = await indexContent(repositoryRoot);
 console.log(formatContentIndexResult(contentIndex));
-console.log("");
-console.log("Starting semantic index...");
-console.log("Ollama: http://localhost:11434");
-console.log("Model: nomic-embed-text");
-console.log("");
-const semanticIndex = await indexSemantic(repositoryRoot);
-console.log(formatSemanticIndexResult(semanticIndex));
-await startAgentCli({
-    repositoryRoot,
-    chatModel: "qwen3-coder:30b",
-});
+if (!process.argv.includes("--dcs")) {
+    console.log("");
+    console.log("Starting semantic index...");
+    console.log("Ollama: http://localhost:11434");
+    console.log("Model: nomic-embed-text");
+    console.log("");
+    const semanticIndex = await indexSemantic(repositoryRoot);
+    console.log(formatSemanticIndexResult(semanticIndex));
+}
+const dcsMode = process.argv.includes("--dcs");
+if (dcsMode) {
+    console.log("");
+    console.log("Starting DCS runtime...");
+    console.log("");
+    const result = await runDcsRuntime(repositoryRoot);
+    console.log(JSON.stringify(result, null, 2));
+}
+else {
+    await startAgentCli({
+        repositoryRoot,
+        chatModel: "qwen3-coder:30b",
+    });
+}

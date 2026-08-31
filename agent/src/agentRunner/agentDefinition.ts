@@ -7,18 +7,31 @@ export interface AgentDefinition {
 }
 
 const OUTPUT_CONTRACT_INSTRUCTIONS = [
-  "Return ONLY valid JSON. Do not include markdown or explanations outside the JSON.",
+"Return ONLY valid JSON. Never return YAML, plain text, markdown, or fenced code blocks.",
   "",
-  "Required JSON shape:",
+  "You MUST use the canonical LifeOS DCS agent-result contract:",
   "{",
   '  "status": "READY" | "NEEDS_CLARIFICATION" | "BLOCKED" | "FAILED",',
-  '  "findings": string[],',
-  '  "recommendations": string[],',
-  '  "files": string[],',
-  '  "risks": string[],',
-  '  "confidence": number (0 to 1)',
+  '  "summary": string,',
+  '  "facts": string[],',
+  '  "inferences": string[],',
+  '  "proposals": string[],',
+  '  "risks": object[],',
+  '  "artifacts": string[],',
+  '  "evidence": string[],',
+  '  "nextAction": string',
   "}",
-].join("\n\n");
+  "",
+  "Rules:",
+  "- facts contain only observed repository facts.",
+  "- inferences contain conclusions derived from facts.",
+  "- proposals contain recommended actions.",
+  "- risks contain structured risk objects.",
+  "- artifacts contain relevant file paths or artifact identifiers.",
+  "- evidence identifies the repository evidence supporting the result.",
+  "- nextAction must be one concrete executable action.",
+  "- Never claim work was performed unless the input contains evidence that it was performed.",
+].join("\n");
 
 const AGENT_DEFINITIONS: Record<AgentRole, AgentDefinition> = {
   PLANNER: {

@@ -1,5 +1,5 @@
 {
-    "taskId": "DCS-000",
+    "taskId": "DCS-001",
     "state": "ANALYSIS",
     "attempt": 0,
     "readScope": ["DCS/**", "AGENTS.md", "PROJECT_STATE.md", "agent/**", ".agent/**"],

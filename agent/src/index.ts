@@ -20,6 +20,8 @@ import {
   startAgentCli,
 } from "./cli.js";
 
+import { runDcsRuntime } from "./runtime/dcsRuntime.js";
+
 const repositoryRoot = resolve(
   process.cwd(),
   "..",
@@ -98,30 +100,54 @@ console.log(
   ),
 );
 
-console.log("");
-console.log(
-  "Starting semantic index...",
-);
-console.log(
-  "Ollama: http://localhost:11434",
-);
-console.log(
-  "Model: nomic-embed-text",
-);
-console.log("");
-
-const semanticIndex =
-  await indexSemantic(
-    repositoryRoot,
+if (!process.argv.includes("--dcs")) {
+  console.log("");
+  console.log(
+    "Starting semantic index...",
   );
+  console.log(
+    "Ollama: http://localhost:11434",
+  );
+  console.log(
+    "Model: nomic-embed-text",
+  );
+  console.log("");
 
-console.log(
-  formatSemanticIndexResult(
-    semanticIndex,
-  ),
-);
+  const semanticIndex =
+    await indexSemantic(
+      repositoryRoot,
+    );
 
-await startAgentCli({
-  repositoryRoot,
-  chatModel: "qwen3-coder:30b",
-});
+  console.log(
+    formatSemanticIndexResult(
+      semanticIndex,
+    ),
+  );
+}
+
+const dcsMode =
+  process.argv.includes("--dcs");
+
+if (dcsMode) {
+  console.log("");
+  console.log("Starting DCS runtime...");
+  console.log("");
+
+  const result =
+    await runDcsRuntime(
+      repositoryRoot,
+    );
+
+  console.log(
+    JSON.stringify(
+      result,
+      null,
+      2,
+    ),
+  );
+} else {
+  await startAgentCli({
+    repositoryRoot,
+    chatModel: "qwen3-coder:30b",
+  });
+}

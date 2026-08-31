@@ -1,10 +1,18 @@
 {
-    "taskId": "DCS-000",
-    "contextVersion": "bootstrap-1",
-    "facts": [],
-    "relevantFiles": [],
-    "decisions": [],
-    "previousFailures": [],
-    "retrievalMode": "targeted",
-    "explorationBudget": "bounded"
+  "taskId": "DCS-001",
+  "contextVersion": "bootstrap-1-runtime-runtime-runtime",
+  "facts": [
+    "Task requires an audit of the current system.",
+    "No modifications to source files, implementation files, or packages are allowed.",
+    "No refactoring, commits, or pushes are permitted.",
+    "Workflow state must not be modified manually."
+  ],
+  "relevantFiles": [
+    "Task document (DCS-001)",
+    "Repository evidence (within read scope)"
+  ],
+  "decisions": [],
+  "previousFailures": [],
+  "retrievalMode": "targeted",
+  "explorationBudget": "bounded"
 }

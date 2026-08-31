@@ -6,10 +6,19 @@ export type AgentOutputStatus =
 
 export interface AgentOutput {
   status: AgentOutputStatus;
+  summary: string;
+  facts: string[];
+  inferences: string[];
+  proposals: string[];
+  risks: string[];
+  artifacts: string[];
+  evidence: string[];
+  nextAction: string;
+
+  // Internal compatibility fields.
   findings: string[];
   recommendations: string[];
   files: string[];
-  risks: string[];
   confidence: number;
 }
 
@@ -39,6 +48,16 @@ function assertStringArray(
   }
 }
 
+function assertRiskArray(
+  value: unknown,
+): void {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      "Agent output risks must be an array.",
+    );
+  }
+}
+
 export function assertValidAgentOutput(
   output: AgentOutput,
 ): void {
@@ -57,10 +76,55 @@ export function assertValidAgentOutput(
     );
   }
 
-  assertStringArray(output.findings, "findings");
-  assertStringArray(output.recommendations, "recommendations");
-  assertStringArray(output.files, "files");
-  assertStringArray(output.risks, "risks");
+  if (
+    typeof output.summary !== "string"
+  ) {
+    throw new Error(
+      "Agent output summary must be a string.",
+    );
+  }
+
+  assertStringArray(output.facts, "facts");
+  assertStringArray(
+    output.inferences,
+    "inferences",
+  );
+  assertStringArray(
+    output.proposals,
+    "proposals",
+  );
+  assertRiskArray(output.risks);
+  assertStringArray(
+    output.artifacts,
+    "artifacts",
+  );
+  assertStringArray(
+    output.evidence,
+    "evidence",
+  );
+
+  if (
+    typeof output.nextAction !== "string" ||
+    !output.nextAction.trim()
+  ) {
+    throw new Error(
+      "Agent output nextAction must be a non-empty string.",
+    );
+  }
+
+  // Compatibility fields used by the current DCS runtime.
+  assertStringArray(
+    output.findings,
+    "findings",
+  );
+  assertStringArray(
+    output.recommendations,
+    "recommendations",
+  );
+  assertStringArray(
+    output.files,
+    "files",
+  );
 
   if (
     typeof output.confidence !== "number" ||
