@@ -1,0 +1,10 @@
+{
+    "taskId": "DCS-000",
+    "contextVersion": "bootstrap-1",
+    "facts": [],
+    "relevantFiles": [],
+    "decisions": [],
+    "previousFailures": [],
+    "retrievalMode": "targeted",
+    "explorationBudget": "bounded"
+}

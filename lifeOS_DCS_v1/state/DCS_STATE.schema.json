@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "lifeos://dcs/state.schema.json",
+    "title": "LifeOS DCS State",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "dcsVersion", "project", "activeTask", "state",
+        "attempt", "maxAttempts", "status", "nextTask", "freezeStatus"
+    ],
+    "properties": {
+        "dcsVersion": {"type": "string"},
+        "project": {"type": "string", "minLength": 1},
+        "activeTask": {"type": ["string", "null"]},
+        "state": {"type": "string"},
+        "attempt": {"type": "integer", "minimum": 0},
+        "maxAttempts": {"type": "integer", "minimum": 1},
+        "status": {"type": "string", "enum": ["ACTIVE", "BLOCKED", "PAUSED", "DONE", "FAILED"]},
+        "nextTask": {"type": ["string", "null"]},
+        "freezeStatus": {"type": "string", "enum": ["BOOTSTRAP", "FROZEN"]}
+    }
+}

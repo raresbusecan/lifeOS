@@ -1,0 +1,15 @@
+{
+    "protected": [
+        "frontend/**",
+        "backend/**",
+        ".env",
+        ".env.*",
+        "**/*.pem",
+        "**/*.key",
+        "**/secrets/**",
+        "**/credentials/**"
+    ],
+    "bootstrapWriteAllowed": [
+        "DCS/**"
+    ]
+}

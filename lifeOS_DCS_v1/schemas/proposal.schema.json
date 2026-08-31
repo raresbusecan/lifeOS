@@ -1,0 +1,23 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "lifeos://dcs/proposal.schema.json",
+    "title": "LifeOS DCS Proposal",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "taskId", "title", "problem", "evidence", "proposedChange", "status"],
+    "properties": {
+        "id": {"type": "string"},
+        "taskId": {"type": "string"},
+        "title": {"type": "string"},
+        "problem": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "currentBehavior": {"type": "string"},
+        "proposedChange": {"type": "string"},
+        "alternatives": {"type": "array", "items": {"type": "string"}},
+        "impact": {"type": "array", "items": {"type": "string"}},
+        "risk": {"type": "string"},
+        "reversibility": {"type": "string"},
+        "recommendation": {"type": "string"},
+        "status": {"type": "string", "enum": ["PROPOSED", "UNDER_REVIEW", "ACCEPTED", "REJECTED", "DEFERRED"]}
+    }
+}

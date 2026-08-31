@@ -1,0 +1,40 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "lifeos://dcs/task.schema.json",
+    "title": "LifeOS DCS Task",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "id", "title", "objective", "type", "status", "risk",
+        "attempt", "maxAttempts", "acceptanceCriteria",
+        "readScope", "writeScope", "protectedAreas"
+    ],
+    "properties": {
+        "id": {"type": "string", "pattern": "^[A-Z0-9-]+$"},
+        "title": {"type": "string", "minLength": 1},
+        "objective": {"type": "string", "minLength": 1},
+        "parentTaskId": {"type": ["string", "null"]},
+        "type": {"type": "string"},
+        "priority": {"type": "string"},
+        "department": {"type": "string"},
+        "status": {"type": "string"},
+        "risk": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "attempt": {"type": "integer", "minimum": 0},
+        "maxAttempts": {"type": "integer", "minimum": 1},
+        "acceptanceCriteria": {"type": "array", "items": {"type": "string"}},
+        "constraints": {"type": "array", "items": {"type": "string"}},
+        "dependencies": {"type": "array", "items": {"type": "string"}},
+        "readScope": {"type": "array", "items": {"type": "string"}},
+        "writeScope": {"type": "array", "items": {"type": "string"}},
+        "protectedAreas": {"type": "array", "items": {"type": "string"}},
+        "impactMap": {"type": "object"},
+        "requiredTests": {"type": "array", "items": {"type": "string"}},
+        "history": {"type": "array", "items": {"type": "object"}},
+        "failures": {"type": "array", "items": {"type": "object"}},
+        "decisions": {"type": "array", "items": {"type": "string"}},
+        "checkpoints": {"type": "array", "items": {"type": "string"}},
+        "createdTasks": {"type": "array", "items": {"type": "string"}},
+        "createdAt": {"type": "string"},
+        "updatedAt": {"type": "string"}
+    }
+}

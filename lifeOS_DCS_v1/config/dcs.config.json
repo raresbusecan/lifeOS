@@ -1,0 +1,15 @@
+{
+    "version": "1.0.0",
+    "project": "lifeOS",
+    "defaultMaxAttempts": 3,
+    "singleActiveTask": true,
+    "llmMayChangeState": false,
+    "llmMayDeclareDone": false,
+    "requireValidationEvidence": true,
+    "requireScopeValidation": true,
+    "requireCheckpoint": true,
+    "architectureChangesRequireDecision": true,
+    "scopeExpansionRequiresDecision": true,
+    "bootstrapReadOnly": true,
+    "protectedApplicationAreas": ["frontend/**", "backend/**"]
+}

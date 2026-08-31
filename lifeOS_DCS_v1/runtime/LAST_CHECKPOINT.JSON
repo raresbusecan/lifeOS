@@ -1,0 +1,13 @@
+{
+    "taskId": "DCS-000",
+    "state": "ANALYSIS",
+    "attempt": 0,
+    "timestamp": null,
+    "gitRef": null,
+    "changedFiles": [],
+    "testResult": null,
+    "decisionRefs": [],
+    "discoveries": [],
+    "knownProblems": [],
+    "nextAction": "Execute DCS-000 bootstrap inventory"
+}

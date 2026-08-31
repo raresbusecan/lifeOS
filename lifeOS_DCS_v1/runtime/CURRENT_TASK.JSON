@@ -1,0 +1,9 @@
+{
+    "taskId": "DCS-000",
+    "state": "ANALYSIS",
+    "attempt": 0,
+    "readScope": ["DCS/**", "AGENTS.md", "PROJECT_STATE.md", "agent/**", ".agent/**"],
+    "writeScope": ["DCS/**"],
+    "protectedScope": ["frontend/**", "backend/**"],
+    "nextAction": "Execute DCS-000 bootstrap inventory"
+}

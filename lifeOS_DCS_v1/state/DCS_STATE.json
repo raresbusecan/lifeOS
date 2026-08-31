@@ -1,0 +1,11 @@
+{
+    "dcsVersion": "1.0.0",
+    "project": "lifeOS",
+    "activeTask": "DCS-000",
+    "state": "ANALYSIS",
+    "attempt": 0,
+    "maxAttempts": 3,
+    "status": "ACTIVE",
+    "nextTask": "DCS-000",
+    "freezeStatus": "BOOTSTRAP"
+  }

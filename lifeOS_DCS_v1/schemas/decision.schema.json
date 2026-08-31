@@ -1,0 +1,21 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "lifeos://dcs/decision.schema.json",
+    "title": "LifeOS DCS Decision",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "taskId", "title", "problem", "evidence", "decision", "decisionBy", "decisionAt"],
+    "properties": {
+        "id": {"type": "string"},
+        "taskId": {"type": "string"},
+        "title": {"type": "string"},
+        "problem": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "options": {"type": "array", "items": {"type": "string"}},
+        "decision": {"type": "string"},
+        "rationale": {"type": "string"},
+        "consequences": {"type": "array", "items": {"type": "string"}},
+        "decisionBy": {"type": "string"},
+        "decisionAt": {"type": "string"}
+    }
+}

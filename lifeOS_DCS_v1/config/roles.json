@@ -1,0 +1,12 @@
+{
+    "Controller": {"mayChangeState": true, "mayWriteCode": false},
+    "Planner": {"mayChangeState": false, "mayWriteCode": false},
+    "Analyst": {"mayChangeState": false, "mayWriteCode": false},
+    "Architect": {"mayChangeState": false, "mayWriteCode": false},
+    "Council": {"mayChangeState": false, "mayWriteCode": false},
+    "Coder": {"mayChangeState": false, "mayWriteCode": true},
+    "Tester": {"mayChangeState": false, "mayWriteCode": false},
+    "Triage": {"mayChangeState": false, "mayWriteCode": false},
+    "Reviewer": {"mayChangeState": false, "mayWriteCode": false},
+    "GitManager": {"mayChangeState": false, "mayWriteCode": false}
+}

@@ -1,0 +1,21 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "lifeos://dcs/checkpoint.schema.json",
+    "title": "LifeOS DCS Checkpoint",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["taskId", "state", "attempt", "timestamp", "gitRef", "nextAction"],
+    "properties": {
+        "taskId": {"type": "string"},
+        "state": {"type": "string"},
+        "attempt": {"type": "integer", "minimum": 0},
+        "timestamp": {"type": "string"},
+        "gitRef": {"type": "string"},
+        "changedFiles": {"type": "array", "items": {"type": "string"}},
+        "testResult": {"type": "object"},
+        "decisionRefs": {"type": "array", "items": {"type": "string"}},
+        "discoveries": {"type": "array", "items": {"type": "string"}},
+        "knownProblems": {"type": "array", "items": {"type": "string"}},
+        "nextAction": {"type": "string"}
+    }
+}

@@ -1,0 +1,15 @@
+{
+    "G0": "Bootstrap Gate",
+    "G1": "Audit Gate",
+    "G2": "Reconciliation Gate",
+    "G3": "Dependency Gate",
+    "G4": "Adversarial Review Gate",
+    "G5": "DCS Freeze Gate",
+    "G6": "Task Contract Gate",
+    "G7": "Scope/Impact Gate",
+    "G8": "Implementation Gate",
+    "G9": "Validation Gate",
+    "G10": "Review Gate",
+    "G11": "Completion Gate",
+    "G12": "Architecture Gate"
+}
